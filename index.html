@@ -1,0 +1,2765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<link rel="manifest" href="manifest.json">
+	<meta name="theme-color" content="#1f2937">
+	<link rel="apple-touch-icon" href="icon-192.png">
+	<meta name="apple-mobile-web-app-capable" content="yes">
+	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BHS Operation Dashboard - Rummage</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS for Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Plotly.js for Charts -->
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+	<!-- ADD PAPAPARSE FOR FAST CSV LOADING -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        .chart-container { height: 350px; width: 100%; }
+        .timeline-container { height: 380px; width: 100%; transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1); } 
+        
+        /* Ultra-Optimized Table CSS */
+        table { border-collapse: collapse; width: 100%; table-layout: fixed; }
+        th, td { border: 1px solid #e5e7eb; padding: 4px 6px; text-align: center; vertical-align: middle; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        th { background-color: #f9fafb; font-weight: 600; font-size: 0.65rem; text-transform: uppercase; color: #4b5563; position: sticky; top: 0; z-index: 10; }
+        td { font-size: 0.7rem; color: #1f2937; }
+        
+        /* Specificity override for fixed tables */
+        .table-fixed-layout { table-layout: fixed; }
+        
+        /* Hardware Acceleration for Smooth Overlays */
+        #loading-overlay, #overlap-modal, #trip-modal, #opt-deploy-modal, #reset-confirm-modal, #sim-summary-modal { will-change: opacity; }
+        
+        /* Scrollbars */
+        .table-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+        .table-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .table-scroll::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        .table-scroll::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        
+        .sim-scroll::-webkit-scrollbar { width: 6px; }
+        .sim-scroll::-webkit-scrollbar-track { background: #f8fafc; }
+        .sim-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        input[type="time"]::-webkit-datetime-edit-ampm-field { display: none; }
+
+        /* Subtle focus for multi-selects */
+        select[multiple]:focus option:checked {
+            background: #3b82f6 linear-gradient(0deg, #3b82f6 0%, #3b82f6 100%);
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 pb-12">
+
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-70 z-[300] hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white p-8 rounded-xl shadow-2xl flex flex-col items-center">
+            <svg class="animate-spin h-12 w-12 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <h2 class="text-xl font-bold text-gray-800">Processing Data...</h2>
+            <p class="text-sm text-gray-500 mt-2">Parsing unique records and rendering dashboard.</p>
+        </div>
+    </div>
+
+    <!-- MAIN WRAPPER -->
+    <div class="max-w-7xl mx-auto p-4 space-y-6">
+        
+        <!-- Header & Upload -->
+        <div class="bg-white p-6 rounded-lg shadow flex flex-col md:flex-row justify-between items-center border-t-4 border-blue-600">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">BHS Operation Dashboard - Rummage</h1>
+                <p class="text-sm text-gray-500">Upload your Rummage operations data to generate insights</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center gap-2 w-full md:w-auto">
+				<!-- ADD 'hidden' CLASS TO THE INPUT -->
+				<input type="file" id="upload" accept=".xlsx, .xls" class="hidden w-full md:w-auto text-sm text-gray-500
+					file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold
+					file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+					
+                <button id="btn-save-as" class="px-4 py-2.5 bg-green-600 text-white text-sm font-bold rounded-md hover:bg-green-700 transition shadow-sm hidden flex-shrink-0 flex items-center gap-1.5" title="Save this dashboard with its data as an offline HTML file">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                    Save As
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters Section -->
+        <div id="slicers-section" class="bg-white p-4 rounded-lg shadow space-y-4">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 class="font-bold text-gray-700">Global Filters & Controls</h3>
+                <button id="reset-filters" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-sm font-semibold rounded transition">Reset All Filters</button>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Start Date</label>
+                    <input type="date" id="filter-start-date" class="w-full border p-2 rounded text-sm bg-gray-50 font-mono text-gray-700 outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">End Date</label>
+                    <input type="date" id="filter-end-date" class="w-full border p-2 rounded text-sm bg-gray-50 font-mono text-gray-700 outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+                
+                <!-- CUSTOM SEARCHABLE FLIGHT DROPDOWN -->
+                <div class="relative w-full">
+                    <label class="block text-xs text-gray-500 mb-1">Flight</label>
+                    <div id="custom-flight-select" class="w-full border p-2 rounded text-sm bg-gray-50 cursor-pointer flex justify-between items-center outline-none focus:ring-1 focus:ring-blue-500 transition-shadow">
+                        <span id="custom-flight-text" class="truncate font-semibold text-gray-700">All Flights</span>
+                        <svg class="w-4 h-4 text-gray-500 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                    </div>
+                    <!-- Dropdown Menu -->
+                    <div id="custom-flight-menu" class="absolute z-50 w-full bg-white border border-gray-200 rounded-md shadow-xl mt-1 hidden flex-col overflow-hidden">
+                        <div class="px-3 py-2.5 hover:bg-blue-50 cursor-pointer text-sm font-bold border-b border-gray-100 text-blue-600 flex-shrink-0 transition-colors" id="opt-all-flights">All Flights</div>
+                        <div class="px-3 py-2.5 hover:bg-purple-50 cursor-pointer text-sm font-bold border-b border-gray-100 text-purple-600 flex-shrink-0 transition-colors" id="opt-shifted-flights">Flight Shifted</div>
+                        <div class="p-2 border-b border-gray-100 bg-gray-50 flex-shrink-0">
+                            <input type="text" id="flight-search-input" placeholder="Search flight..." class="w-full border border-gray-300 py-1.5 px-2 rounded text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white shadow-inner">
+                        </div>
+                        <!-- Max height is moved purely to the list, so the white background always wraps it -->
+                        <div id="flight-options-list" class="overflow-y-auto sim-scroll flex-1 p-1 max-h-[220px]"></div>
+                    </div>
+                    <input type="hidden" id="slicer-flight" value="ALL">
+                </div>
+                
+                <!-- MULTI-SELECT CUSTOM DROPDOWNS -->
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Reason</label>
+                    <div class="relative w-full">
+                        <div id="btn-reason" class="w-full border p-2 rounded text-sm bg-gray-50 cursor-pointer flex justify-between items-center outline-none hover:bg-gray-100 transition">
+                            <span id="text-reason" class="truncate">All Reasons</span>
+                            <svg class="w-4 h-4 text-gray-500 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <div id="menu-reason" class="absolute z-50 w-full bg-white border border-gray-300 rounded shadow-lg mt-1 hidden flex-col max-h-60 overflow-y-auto sim-scroll multi-select-menu"></div>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Ground Handler</label>
+                    <div class="relative w-full">
+                        <div id="btn-handler" class="w-full border p-2 rounded text-sm bg-gray-50 cursor-pointer flex justify-between items-center outline-none hover:bg-gray-100 transition">
+                            <span id="text-handler" class="truncate">All GH</span>
+                            <svg class="w-4 h-4 text-gray-500 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <div id="menu-handler" class="absolute z-50 w-full bg-white border border-gray-300 rounded shadow-lg mt-1 hidden flex-col max-h-60 overflow-y-auto sim-scroll multi-select-menu"></div>
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-xs text-gray-500 mb-1">Rummage Area</label>
+                    <div class="relative w-full">
+                        <div id="btn-reclaim" class="w-full border p-2 rounded text-sm bg-gray-50 font-semibold text-blue-700 cursor-pointer flex justify-between items-center outline-none hover:bg-gray-100 transition">
+                            <span id="text-reclaim" class="truncate">All Areas</span>
+                            <svg class="w-4 h-4 text-blue-700 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </div>
+                        <div id="menu-reclaim" class="absolute z-50 w-full bg-white border border-gray-300 rounded shadow-lg mt-1 hidden flex-col max-h-60 overflow-y-auto sim-scroll multi-select-menu"></div>
+                    </div>
+                </div>
+                
+                <div class="col-span-2 lg:col-span-1">
+                    <label class="block text-xs text-gray-500 mb-1">Search Bag Tag ID</label>
+                    <input type="text" id="slicer-search-bag" placeholder="Enter BAGTAGID..." class="w-full border p-2 rounded text-sm bg-gray-50 font-mono outline-none focus:ring-1 focus:ring-blue-500">
+                </div>
+            </div>
+        </div>
+
+        <!-- KPIs -->
+        <div id="kpi-section" class="grid grid-cols-2 md:grid-cols-5 gap-4 hidden">
+            
+            <div class="bg-indigo-600 text-white p-4 rounded-lg shadow text-center">
+                <h4 class="text-xs uppercase opacity-80">Total Bags</h4>
+                <div id="kpi-bags" class="text-3xl font-bold mt-1">-</div>
+            </div>
+
+            <div class="bg-blue-600 text-white p-4 rounded-lg shadow text-center relative group cursor-help transition hover:bg-blue-700">
+                <h4 class="text-xs uppercase opacity-80">Total Flights</h4>
+                <div id="kpi-flights" class="text-3xl font-bold mt-1">-</div>
+                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none text-left border border-gray-700">
+                    <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">FLIGHT ASSIGNMENT</div>
+                    <div id="tooltip-flights-mtb" class="mb-1"><span class="text-gray-400">MTB:</span> <span class="font-bold text-green-400 ml-1">0</span></div>
+                    <div id="tooltip-flights-sat"><span class="text-gray-400">SAT:</span> <span class="font-bold text-yellow-400 ml-1">0</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                </div>
+            </div>
+
+            <div class="bg-orange-600 text-white p-4 rounded-lg shadow text-center relative group cursor-help transition hover:bg-orange-700">
+                <h4 class="text-xs uppercase opacity-80" id="kpi-avg-bags-label">Avg Total Bags</h4>
+                <div id="kpi-avg-bags" class="text-3xl font-bold mt-1">-</div>
+                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none text-center border border-gray-700">
+                    <div class="font-bold text-gray-300 uppercase tracking-wide">Based on Interval</div>
+                    <div class="text-gray-400 mt-1">Updates based on selected timeline interval.</div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                </div>
+            </div>
+
+            <div class="bg-teal-600 text-white p-4 rounded-lg shadow text-center relative group cursor-help transition hover:bg-teal-700">
+                <h4 class="text-xs uppercase opacity-80">Avg Time Before STD (HH:mm)</h4>
+                <div id="kpi-avg-time-std" class="text-3xl font-bold mt-1">-</div>
+                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none text-center border border-gray-700">
+                    <div class="font-bold text-gray-300 uppercase tracking-wide">Calculated As</div>
+                    <div class="text-gray-400 mt-1">Average of (STD - Time dispatch at rummage)</div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-800 text-white p-3 rounded-lg shadow text-center relative group cursor-help transition hover:bg-gray-900 flex flex-col justify-center">
+                <h4 class="text-xs uppercase text-gray-400 mb-1">Time Before STD (HH:mm)</h4>
+                <div class="text-base font-bold mt-1 tracking-wide flex justify-center items-center">
+                    <span class="text-[0.65rem] uppercase text-gray-400 mr-1">Max:</span>
+                    <span id="kpi-max-time-std" class="text-xl text-gray-500">-</span> 
+                    <span class="opacity-50 font-normal mx-2 text-gray-500">|</span> 
+                    <span class="text-[0.65rem] uppercase text-gray-400 mr-1">Min:</span>
+                    <span id="kpi-min-time-std" class="text-xl text-gray-500">-</span>
+                </div>
+                <div id="tooltip-maxmin-std" class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none text-left border border-gray-700">
+                    <!-- Dynamic Content in JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section Grid -->
+        <div id="charts-section" class="hidden space-y-6">
+            
+            <div class="bg-white p-4 rounded-lg shadow relative">
+                <div class="flex justify-between items-center border-b pb-2 mb-2">
+                    <h3 class="font-bold text-gray-700">1. Operational Timeline</h3>
+                    <div class="flex items-center gap-2">
+                        <button class="export-chart-btn flex items-center gap-1 text-[0.65rem] font-bold text-gray-500 hover:text-blue-600 transition bg-gray-100 px-2 py-1 rounded border border-gray-200" data-target="chart-timeline" title="Save Chart as JPEG">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            JPEG
+                        </button>
+                        <label class="text-xs text-gray-500 ml-2">Interval:</label>
+                        <select id="slicer-interval" class="border p-1 rounded text-sm bg-gray-50 outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="raw">Raw Data</option>
+                            <option value="15min">15 Minutes</option>
+                            <option value="hourly" selected>Hourly</option>
+                            <option value="daily">Daily</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="chart-timeline" class="timeline-container"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 2. MANUAL TRANSFER SIMULATOR -->
+                <div class="bg-white p-4 rounded-lg shadow flex flex-col" style="height: 390px;">
+                    <div class="flex justify-between items-center border-b pb-2 mb-2 shrink-0">
+                        <h3 class="font-bold text-gray-700">2. Manual Transfer Simulator</h3>
+                        
+                        <!-- OPTIMIZATION & RESET BUTTON CONTAINER -->
+                        <div class="flex items-center gap-2">
+                            <button id="btn-optimize-toggle" class="px-2.5 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-[0.65rem] font-bold rounded shadow-md flex items-center gap-1 transition-all border border-yellow-600 focus:outline-none">
+                                Optimization !
+                            </button>
+                            <button id="btn-reset-sim" class="hidden px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white text-[0.65rem] font-bold rounded shadow-md transition-all border border-red-700 focus:outline-none" title="Clear all simulation transports">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex-1 flex flex-col min-h-0">
+                        <!-- User Control Inputs -->
+                        <div class="bg-blue-50/50 p-2 rounded-lg border border-blue-200 shadow-sm shrink-0 mb-1.5 flex items-end gap-2">
+                            <div class="w-[75px] relative group cursor-help">
+                                <label class="block text-[0.6rem] font-bold text-gray-700 mb-1 leading-tight text-center">Time</label>
+                                <input type="text" id="sim-input-time" class="w-full border border-gray-300 p-1 rounded text-xs bg-white focus:ring-blue-500 font-mono text-center px-1" value="08:00" maxlength="5" placeholder="HH:mm" required>
+                                
+                                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-xl pointer-events-none text-center border border-gray-700">
+                                    <div class="font-bold text-gray-300 uppercase tracking-wide">HH:mm (24-hour format)</div>
+                                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                                </div>
+                            </div>
+
+                            <div class="flex-1">
+                                <label class="block text-[0.6rem] text-gray-500 mb-1 text-center font-bold leading-tight">Transport Type</label>
+                                <select id="sim-in-type" class="w-full border border-gray-300 p-1 rounded text-xs text-center bg-white font-semibold focus:ring-blue-500">
+                                    <option value="Lorry">Lorry</option>
+                                    <option value="Trolley">Trolley</option>
+                                </select>
+                            </div>
+                            
+                            <div class="w-[90px]">
+                                <label class="block text-[0.6rem] text-gray-500 mb-1 text-center font-bold leading-tight">Bags / Transport</label>
+                                <input type="number" id="sim-in-cap" class="w-full border border-gray-300 p-1 rounded text-xs text-center bg-white focus:ring-blue-500" value="60" min="1">
+                            </div>
+                            
+                            <div class="shrink-0">
+                                <button id="btn-add-sim" class="px-2.5 py-1 bg-blue-600 text-white text-[0.7rem] font-bold rounded hover:bg-blue-700 transition flex items-center justify-center shadow-sm h-[26px]">
+                                    + Add
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 6 Factor Grid -->
+                        <div class="grid grid-cols-3 gap-1 mb-1.5 shrink-0 bg-gray-50 p-1.5 rounded border border-gray-200">
+                            <div>
+                                <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="Loading Time / Bag (s)">Loading Time / Bag (s)</label>
+                                <input type="number" id="sim-f-load" value="6" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="Off Load Time / Bag (s)">Off Load Time / Bag (s)</label>
+                                <input type="number" id="sim-f-unload" value="5" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="Efficiency (%)">Efficiency (%)</label>
+                                <input type="number" id="sim-f-eff" value="85" min="1" max="100" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="MTB-MTB Transport Time (m)">MTB-MTB Transport Time (m)</label>
+                                <input type="number" id="sim-f-mm" value="10" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="SAT-SAT Transport Time (m)">SAT-SAT Transport Time (m)</label>
+                                <input type="number" id="sim-f-ss" value="10" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                            </div>
+                            <div>
+                                <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="MTB ⇆ SAT Transport Time (m)">MTB ⇆ SAT Transport Time (m)</label>
+                                <input type="number" id="sim-f-ms" value="15" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                            </div>
+                        </div>
+
+                        <!-- Results List -->
+                        <div id="sim-entries-list" class="flex-1 overflow-y-auto sim-scroll space-y-1.5 pr-1 mb-2"></div>
+
+                        <!-- Outputs Bottom -->
+                        <div class="pt-1.5 border-t shrink-0 flex flex-col justify-end mt-1">
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <!-- CLICKABLE SIM SUMMARY BUTTON -->
+                                <div style="background-color: #0F52BA;" class="text-white rounded py-1.5 px-2 flex justify-between items-center shadow-inner cursor-pointer hover:bg-blue-800 transition" onclick="openSimSummaryModal()" title="Click to view detailed simulation summary">
+                                    <span class="text-[0.6rem] font-semibold uppercase tracking-wide border-b border-dashed border-white/50">Total Simulation Bags</span>
+                                    <span id="sim-out-bags" class="font-bold text-lg leading-none">0</span>
+                                </div>
+                                <div style="background-color: #008ECC;" class="text-white rounded py-1.5 px-2 flex justify-between items-center shadow-inner">
+                                    <span class="text-[0.6rem] font-semibold uppercase tracking-wide">Est. Simulation Duration</span>
+                                    <span id="sim-out-duration" class="font-bold text-lg leading-none">0m</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. ESTIMATION OUTPUT PANEL -->
+                <div class="bg-white p-4 rounded-lg shadow flex flex-col" style="height: 390px;">
+                    <h3 class="font-bold text-gray-700 border-b pb-2 mb-3 shrink-0">3. Rummage Estimation Output</h3>
+                    <div class="flex-1 grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200 overflow-visible">
+                        
+                        <!-- MAX WORKLOAD DURATION WITH TOOLTIP -->
+                        <div class="relative z-[60] hover:z-[100] flex flex-col items-center justify-center bg-white rounded border shadow-sm p-3 text-center h-[140px] group cursor-help transition hover:bg-gray-50">
+                            <span class="text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider mb-1 leading-tight" title="Maximum calculated Workload (Avg) from the Simulator">Max Workload Duration</span>
+                            <span id="out-max-workload" class="text-3xl font-extrabold text-teal-500 drop-shadow-sm flex items-baseline">-</span>
+                            <span id="out-max-workload-datetime" class="text-[0.65rem] text-gray-400 font-semibold mt-1">-</span>
+                            
+                            <!-- Custom Tooltip Balloon -->
+                            <div id="out-max-workload-tooltip" class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl pointer-events-none text-left border border-gray-700 hidden">
+                                <!-- Populated dynamically by JS -->
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-col items-center justify-center bg-white rounded border shadow-sm p-3 text-center h-[140px]">
+                            <span class="text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider mb-1 leading-tight">Max Combined Bags (Peak)</span>
+                            <span id="out-max-bags" class="text-3xl font-extrabold text-indigo-600 drop-shadow-sm">0</span>
+                            <span id="out-max-time" class="text-[0.65rem] text-gray-400 font-semibold mt-1">-</span>
+                        </div>
+
+                        <!-- MAX TOTAL TRANSPORT -->
+                        <div class="relative z-[50] hover:z-[90] flex flex-col items-center justify-center bg-white rounded border shadow-sm p-3 text-center h-[140px] group cursor-help transition hover:bg-gray-50">
+                            <span class="text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider mb-1 leading-tight" title="Maximum transports required in any interval">Max Total Transport</span>
+                            <span id="out-max-transports" class="text-3xl font-extrabold text-purple-500 drop-shadow-sm">-</span>
+                            <span id="out-max-transports-datetime" class="text-[0.65rem] text-gray-400 font-semibold mt-1">-</span>
+                            
+                            <!-- Detailed Tooltip instead of text below -->
+                            <div id="out-max-transports-tooltip" class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl pointer-events-none text-left border border-gray-700 hidden">
+                                <!-- Populated dynamically by JS -->
+                            </div>
+                        </div>
+                        
+                        <!-- RUMMAGE FLIGHT OVERLAP -->
+                        <div class="relative z-10 hover:z-[60] flex flex-col items-center justify-center bg-white rounded border shadow-sm p-3 text-center h-[140px]">
+                            <span class="text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider mb-1 leading-tight" title="Total flights overlapping during the Peak interval">Rummage Flight Overlap (Peak)</span>
+                            <span id="out-overlap-count" class="text-3xl font-extrabold text-green-600 drop-shadow-sm">0</span>
+                            <button id="btn-overlap-details" class="text-[0.65rem] text-blue-600 font-semibold mt-1 hover:text-blue-800 transition-colors focus:outline-none">FLIGHT DETAILS</button>
+                            
+                            <div class="absolute bottom-1.5 left-1.5 group cursor-help z-20">
+                                <span class="text-sm opacity-40 group-hover:opacity-100 transition-opacity select-none">🖩</span>
+                                <!-- Custom Tooltip Balloon matching KPI style -->
+                                <div class="absolute bottom-full left-0 mb-2 w-max max-w-[240px] px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl pointer-events-none text-left border border-gray-700">
+                                    <div class="font-bold text-gray-300 uppercase tracking-wide border-b border-gray-600 pb-1.5 mb-1.5">Note</div>
+                                    <div class="text-gray-400 leading-tight">
+                                        Total Bags &ne; Max Combined Bags due to details <span class="text-red-400 font-bold">N/A</span>
+                                    </div>
+                                    <div class="absolute top-full left-2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- 4. RUMMAGE LOAD -->
+                <div class="bg-white p-4 rounded-lg shadow flex flex-col relative h-[390px]">
+                    <div class="flex justify-between items-center border-b pb-2 mb-2 shrink-0">
+                        <h3 class="font-bold text-gray-700">4. Rummage Load by Area</h3>
+                        <div class="flex items-center gap-2">
+                            <button class="export-chart-btn flex items-center gap-1 text-[0.65rem] font-bold text-gray-500 hover:text-blue-600 transition bg-gray-100 px-2 py-1 rounded border border-gray-200" data-target="chart-bar" title="Save Chart as JPEG">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                JPEG
+                            </button>
+                            <select id="rummage-sort" class="border p-1 rounded text-xs bg-gray-50 focus:ring-blue-500 outline-none font-medium">
+                                <option value="bags-desc">Total Bags &darr;</option>
+                                <option value="bags-asc">Total Bags &uarr;</option>
+                                <option value="alpha">Alphabetical</option>
+                                <option value="area">Area (MTB | SAT)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="chart-bar" class="flex-1 w-full min-h-0 relative"></div>
+                </div>
+
+                <!-- 5. OVERALL RUMMAGE DURATION DISTRIBUTION -->
+                <div class="bg-white p-4 rounded-lg shadow flex flex-col relative h-[390px]">
+                    <div class="flex justify-between items-center border-b pb-2 mb-2 shrink-0">
+                        <h3 class="font-bold text-gray-700">5. Overall Rummage Duration Distribution</h3>
+                        <button class="export-chart-btn flex items-center gap-1 text-[0.65rem] font-bold text-gray-500 hover:text-blue-600 transition bg-gray-100 px-2 py-1 rounded border border-gray-200" data-target="chart-histogram" title="Save Chart as JPEG">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            JPEG
+                        </button>
+                    </div>
+                    <div id="chart-histogram" class="flex-1 w-full min-h-0 relative"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Rummage Details Table Section -->
+        <div id="reclaim-details-section" class="bg-white p-6 rounded-lg shadow border-t-4 border-yellow-500 mt-6 relative">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="font-bold text-xl text-gray-800 mb-1">Rummage Details: <span id="lbl-reclaim-name" class="text-blue-600">All Areas</span></h3>
+                    <p class="text-sm text-gray-500">Direct 1:1 entity list mapped strictly by unique BAGTAGID.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="text-xs font-semibold text-gray-500 bg-gray-100 px-3 py-1.5 rounded">
+                        Showing <span id="lbl-record-count" class="text-blue-600 font-bold">0</span> Bags
+                    </div>
+                    <!-- Excel Export Button -->
+                    <button id="btn-export-excel" class="hidden px-4 py-2 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700 transition shadow-sm flex-shrink-0 items-center gap-1.5" title="Export this table to Excel">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Export
+                    </button>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto table-scroll pb-2 max-h-[600px] border border-gray-200">
+                <table id="reclaim-table" class="w-full table-fixed-layout">
+                    <thead class="sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th class="whitespace-nowrap w-[15%]">EVENT TIME</th>
+                            <th class="whitespace-nowrap w-[8%]">Flight</th>
+                            <th class="whitespace-nowrap w-[15%]">STD</th>
+                            <th class="whitespace-nowrap w-[12%]">BAGTAGID</th>
+                            <th class="whitespace-nowrap w-[10%]">Rummage</th>
+                            <th class="whitespace-nowrap w-[10%]">Rummage Area</th> 
+                            <th class="whitespace-nowrap w-[10%]">Reason</th>
+                            <th class="whitespace-nowrap w-[8%]">Chute</th>
+                            <th class="whitespace-nowrap w-[12%]">Ground Handler</th> 
+                            <th class="whitespace-nowrap w-[10%]">Hour Before STD (HH:mm)</th> 
+                        </tr>
+                    </thead>
+                    <tbody id="reclaim-tbody">
+                        <tr>
+                            <td colspan="10" class="py-8 text-gray-400 italic">Upload an Excel file to display unique bag details.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Custom Table Tooltip -->
+    <div id="table-custom-tooltip" class="fixed bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible transition-opacity duration-200 shadow-xl pointer-events-none z-[600] border border-gray-700 w-max px-4 py-2.5 transform -translate-x-1/2 -translate-y-full mt-[-15px]">
+        <div id="table-tooltip-content"></div>
+        <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+    </div>
+
+    <!-- Optimization Deployment Modal -->
+    <div id="opt-deploy-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 z-[600] hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col m-4 transform transition-all duration-300">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-amber-200">
+                    <span class="text-4xl font-black text-amber-500">!</span>
+                </div>
+                <h3 class="font-extrabold text-gray-800 text-xl mb-2">Optimization To Be Deploy</h3>
+                <p class="text-xs text-gray-500 mb-6 px-2">This will automatically analyze operational demand and deploy the perfect fleet mix of Lorries (60) and Trolleys (40) to achieve precisely 1 trip per transport while minimizing total workload.</p>
+                <div class="flex gap-3 justify-center">
+                    <button id="btn-cancel-deploy" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-300 transition focus:outline-none">Cancel</button>
+                    <button id="btn-run-deploy" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg transition shadow-md focus:outline-none">Deploy Now</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Confirmation Warning Modal -->
+    <div id="reset-confirm-modal" class="fixed inset-0 bg-gray-900 bg-opacity-60 z-[600] hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden flex flex-col m-4 transform transition-all duration-300">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-red-200">
+                    <span class="text-4xl font-black text-red-500">!</span>
+                </div>
+                <h3 class="font-extrabold text-gray-800 text-xl mb-2">Reset Simulation?</h3>
+                <p class="text-xs text-gray-500 mb-6 px-2">Are you sure you want to reset all simulated transports? This will clear all current inputs and optimization data.</p>
+                <div class="flex gap-3 justify-center">
+                    <button id="btn-cancel-reset" class="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-bold rounded-lg hover:bg-gray-300 transition focus:outline-none">Cancel</button>
+                    <button id="btn-confirm-reset" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition shadow-md focus:outline-none">Yes, Reset</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN SIMULATION DASHBOARD MODAL -->
+    <div id="sim-summary-modal" class="fixed inset-0 bg-gray-900 bg-opacity-70 z-[700] hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-[95vw] lg:max-w-6xl max-h-[90vh] overflow-hidden flex flex-col m-4 transform transition-all duration-300">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+                <div>
+                    <h3 class="font-extrabold text-gray-800 text-lg">Detailed Simulation Summary</h3>
+                    <p class="text-xs text-gray-500 mt-0.5">Comprehensive overview of all scheduled transports, workloads, and processed bags.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="btn-export-sim" class="px-4 py-2 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition shadow-sm flex items-center gap-1.5 focus:outline-none">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                        Export Data
+                    </button>
+                    <button id="close-sim-summary-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors bg-white p-1 rounded-full shadow-sm border border-gray-200 hover:bg-gray-100">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto sim-scroll flex flex-col p-6 bg-white gap-6">
+                <!-- CHART CONTAINER WITH HEADER -->
+                <div class="w-full bg-white rounded-lg border border-gray-200 shadow-sm shrink-0 flex flex-col">
+                    <div class="flex justify-between items-center px-4 py-2 border-b border-gray-100 bg-gray-50 rounded-t-lg">
+                        <h3 class="font-bold text-gray-700 text-sm">Simulation Workload Timeline</h3>
+                        <div class="flex items-center gap-2">
+                            <button class="export-chart-btn flex items-center gap-1 text-[0.65rem] font-bold text-gray-500 hover:text-blue-600 transition bg-white px-2 py-1 rounded border border-gray-200 shadow-sm focus:outline-none" data-target="sim-summary-chart" title="Save Chart as JPEG">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                JPEG
+                            </button>
+                            <label class="text-xs text-gray-500 ml-1">Chart Type:</label>
+                            <select id="sim-chart-type-select" class="border border-gray-200 py-1 px-2 rounded text-xs bg-white outline-none focus:ring-1 focus:ring-blue-500 shadow-sm font-semibold text-gray-700 cursor-pointer">
+                                <option value="bar">Bar</option>
+                                <option value="area">Area</option>
+                            </select>
+                        </div>
+                    </div>
+                    <!-- Chart Body -->
+                    <div class="w-full h-[280px] relative bg-gray-50 p-2 rounded-b-lg">
+                        <!-- Y-AXIS HOVER TRIGGER FOR KPI TOOLTIP -->
+                        <div class="absolute left-0 top-0 bottom-0 w-12 z-20 group cursor-help flex items-center justify-center">
+                            <div class="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl pointer-events-none text-left border border-gray-700">
+                                <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">Simulation Details</div>
+                                <div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1" id="sim-sum-date">-</span></div>
+                                <div class="mb-1"><span class="text-gray-400">Rummage Area:</span> <span class="font-bold text-white ml-1" id="sim-sum-area">-</span></div>
+                                <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-blue-400 text-sm ml-1" id="sim-sum-bags">0</span> <span class="text-gray-400 ml-1 font-normal opacity-90">[<span class="text-white mx-0.5 font-bold" id="sim-sum-lorry">0</span>(Lorry) | <span class="text-white mx-0.5 font-bold" id="sim-sum-trolley">0</span>(Trolley)]</span></div>
+                                <div><span class="text-gray-400">Average Workload:</span> <span class="font-bold text-white ml-1" id="sim-sum-avg-workload">-</span></div>
+                                <div class="absolute top-1/2 right-full transform -translate-y-1/2 translate-x-[1px] border-[6px] border-transparent border-r-gray-800"></div>
+                            </div>
+                        </div>
+                        <div id="sim-summary-chart" class="w-full h-full"></div>
+                    </div>
+                </div>
+                
+                <!-- SUMMARY TABLE CONTAINER -->
+                <div class="w-full border border-gray-200 rounded-lg shadow-sm overflow-hidden shrink-0">
+                    <div class="overflow-x-auto table-scroll max-h-[40vh]">
+                        <table class="w-full text-center border-collapse min-w-[900px] table-auto">
+                            <thead class="bg-gray-100 sticky top-0 shadow-sm z-10">
+                                <tr>
+                                    <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[10%]">Time</th>
+                                    <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[15%]">Transport</th>
+                                    <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[18%]">Flight</th>
+                                    <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[10%]">Capacity</th>
+                                    <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[10%]">Trip</th>
+                                    <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[10%]">Loaded Bags</th>
+                                    <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[15%]">Avg. Hour Before STD</th>
+                                    <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[12%]">Workload (m)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sim-summary-tbody" class="bg-white">
+                                <!-- Dynamic content -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulator Transport Popup Modal -->
+    <div id="trip-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-[500] hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-xl overflow-hidden flex flex-col m-4 transform transition-all duration-300">
+            <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800" id="trip-modal-title">Transport Details</h3>
+                <button id="close-trip-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-4 max-h-[50vh] overflow-y-auto sim-scroll">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-100 sticky top-0">
+                        <tr>
+                            <th class="border-b py-2 px-2 text-xs font-semibold text-gray-600 uppercase text-center">Flight</th>
+                            <th class="border-b py-2 px-2 text-xs font-semibold text-gray-600 uppercase text-center">Total Bag</th>
+                            <th class="border-b py-2 px-2 text-xs font-semibold text-gray-600 uppercase text-center">Chute</th>
+                            <th class="border-b py-2 px-2 text-xs font-semibold text-gray-600 uppercase text-center">Avg Hour Before STD</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trip-modal-body">
+                        <!-- Dynamic content -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-4 py-3 border-t bg-gray-50 flex justify-between items-center">
+                <button id="btn-delete-trip" class="px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700 transition shadow-sm flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    Delete Transport
+                </button>
+                <span class="text-sm font-normal text-gray-700" id="trip-modal-total"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flight Overlap Details Modal -->
+    <div id="overlap-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-[400] hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
+        <div class="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden flex flex-col m-4 transform transition-all duration-300">
+            <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
+                <h3 class="font-bold text-gray-800">Peak Flight Details</h3>
+                <button id="close-overlap-modal" class="text-gray-400 hover:text-gray-600 focus:outline-none transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-4 max-h-[60vh] overflow-y-auto sim-scroll">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="border-b py-2 text-xs font-semibold text-gray-500 uppercase">Flight</th>
+                            <th class="border-b py-2 text-xs font-semibold text-gray-500 uppercase text-right">Bags</th>
+                        </tr>
+                    </thead>
+                    <tbody id="overlap-modal-body">
+                        <!-- Dynamic content populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="px-4 py-3 border-t bg-gray-50 text-right">
+                <span class="text-sm font-bold text-gray-700" id="overlap-modal-total">Total Bags: 0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- DATASET PROCESSING & RELATIONSHIP LOGIC -->
+    <script>
+        const PLOTLY_CONFIG = { responsive: true, displayModeBar: false };
+        const bagDataset = new Map();
+        let currentFilteredBags = []; 
+        let simEntries = []; // Manual Transfer Simulator tracking inputs
+        let generatedTrips = []; // Dynamically packed trips
+        
+        let isOptimized = false; // Automation state toggle
+        let simChartType = 'bar'; // Toggle for Summary Dashboard Chart
+        
+        // Setup Global Color Map for charts to ensure consistency
+        const areaColorPalette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#14b8a6', '#6366f1', '#eab308'];
+        const areaColorMap = new Map();
+
+        let filterState = { reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
+
+        // NEW FLIGHT SHIFTED CONSTANT LIST
+        const SHIFTED_FLIGHTS_LIST = [
+            "3U3994", "3U3996", "CA872", "CI722", "CX722", "CZ3048", "CZ350", 
+            "CZ5036", "CZ5080", "EK343", "EK345", "EK347", "EY487", "EY489", 
+            "FM7222", "FM7266", "G9801", "JL724", "KL809", "MF8678", "MH156", 
+            "MH158", "MH164", "MH194", "MH20", "MH251", "MH315", "MH318", 
+            "MH366", "MH388", "MH4", "MH66", "MH70", "MH715", "MH721", "MH871", 
+            "MH88", "MU796", "QG503", "SQ103", "SQ105", "SQ107", "SQ113", 
+            "SQ115", "SQ121", "SQ125", "SQ127", "SV829", "SV835", "SV841", "UL315"
+        ];
+
+        // Helper: Convert decimal hours to HH:mm strictly preserving signs
+        function formatDecimalToHHmm(decimalHours) {
+            if (decimalHours === null || decimalHours === undefined || isNaN(decimalHours)) return '-';
+            const isNegative = decimalHours < 0;
+            const absHours = Math.abs(decimalHours);
+            let h = Math.floor(absHours);
+            let m = Math.round((absHours - h) * 60);
+            if (m === 60) {
+                h += 1;
+                m = 0;
+            }
+            const sign = isNegative ? '-' : '';
+            return `${sign}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        function setupDropdownToggle(btnId, menuId) {
+            const btn = document.getElementById(btnId);
+            const menu = document.getElementById(menuId);
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                document.querySelectorAll('.multi-select-menu').forEach(m => {
+                    if (m.id !== menuId) m.classList.add('hidden');
+                });
+                document.getElementById('custom-flight-menu').classList.add('hidden');
+                menu.classList.toggle('hidden');
+            });
+            document.addEventListener('click', (e) => {
+                if (!menu.contains(e.target) && !btn.contains(e.target)) {
+                    menu.classList.add('hidden');
+                }
+            });
+        }
+
+        // --- SAVE AS & CLEAN EMBEDDED EXPORT LOGIC ---
+        document.getElementById('btn-save-as').addEventListener('click', saveDashboardAsHTML);
+
+        function saveDashboardAsHTML() {
+            if (bagDataset.size === 0) {
+                alert("No dataset loaded to save.");
+                return;
+            }
+
+            const dataArray = Array.from(bagDataset.values());
+            const safeJson = JSON.stringify(dataArray).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
+
+            // Clone document element to clean up exported HTML DOM
+            const clone = document.documentElement.cloneNode(true);
+
+            // 1. Clean chart containers
+            ['chart-timeline', 'chart-bar', 'chart-histogram', 'sim-summary-chart'].forEach(id => {
+                const el = clone.querySelector('#' + id);
+                if (el) el.innerHTML = '';
+            });
+
+            // 2. Clean dynamic dropdown lists
+            ['flight-options-list', 'menu-reason', 'menu-handler', 'menu-reclaim'].forEach(id => {
+                const el = clone.querySelector('#' + id);
+                if (el) el.innerHTML = '';
+            });
+
+            // 3. Clean dynamic table body
+            const tbody = clone.querySelector('#reclaim-tbody');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-gray-400 italic">Upload an Excel file to display unique bag details.</td></tr>';
+            }
+
+            // 4. Ensure modals and menus are hidden
+            ['loading-overlay', 'overlap-modal', 'trip-modal', 'opt-deploy-modal', 'reset-confirm-modal', 'sim-summary-modal', 'custom-flight-menu'].forEach(id => {
+                const el = clone.querySelector('#' + id);
+                if (el) el.classList.add('hidden');
+            });
+
+            // 5. Clean tooltips
+            const tooltipContent = clone.querySelector('#table-tooltip-content');
+            if (tooltipContent) tooltipContent.innerHTML = '';
+
+            // 6. Build Script Tag with Embedded Data
+            const scriptBlock = `<script id="embedded-data-store">window.PRELOADED_BHS_DATA = ${safeJson};<\/script>`;
+
+            const existingStore = clone.querySelector('#embedded-data-store');
+            if (existingStore) existingStore.remove();
+
+            const head = clone.querySelector('head');
+            if (head) {
+                head.insertAdjacentHTML('beforeend', scriptBlock);
+            }
+
+            const docHtml = "<!DOCTYPE html>\n" + clone.outerHTML;
+
+            const todayStr = new Date().toISOString().slice(0,10);
+            const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `BHS_Rummage_Dashboard_${todayStr}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function loadEmbeddedData(dataArray) {
+            bagDataset.clear();
+            dataArray.forEach(bag => {
+                bagDataset.set(bag.bagTagId, bag);
+            });
+
+            setDefaultDateFilters();
+            populateFilterDropdowns();
+
+            document.getElementById('btn-save-as').classList.remove('hidden');
+            document.getElementById('kpi-section').classList.remove('hidden');
+            document.getElementById('charts-section').classList.remove('hidden');
+
+            applyFiltersAndRender();
+        }
+
+        // --- OPTIMIZATION AUTOMATION ENGINE & STATE MANAGEMENT ---
+        function setOptimizationState(state) {
+            isOptimized = state;
+            const btnOptToggle = document.getElementById('btn-optimize-toggle');
+            const btnResetSim = document.getElementById('btn-reset-sim');
+
+            if (state) {
+                if (btnOptToggle) {
+                    btnOptToggle.innerHTML = `OPTIMIZED`; // Renamed to OPTIMIZED during Green state
+                    btnOptToggle.className = "px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-[0.65rem] font-bold rounded shadow-md flex items-center gap-1 transition-all border border-green-700 focus:outline-none";
+                }
+                if (btnResetSim) {
+                    btnResetSim.classList.remove('hidden');
+                }
+            } else {
+                if (btnOptToggle) {
+                    btnOptToggle.innerHTML = `Optimization !`; // Default Yellow text
+                    btnOptToggle.className = "px-2.5 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-[0.65rem] font-bold rounded shadow-md flex items-center gap-1 transition-all border border-yellow-600 focus:outline-none";
+                }
+                if (btnResetSim) {
+                    btnResetSim.classList.add('hidden');
+                }
+            }
+        }
+
+        // Single Delegation Listener on Document Body
+        document.addEventListener('click', (e) => {
+            // Open Deployment Modal
+            const btnOpt = e.target.closest('#btn-optimize-toggle');
+            if (btnOpt && !isOptimized) {
+                document.getElementById('opt-deploy-modal').classList.remove('hidden');
+            }
+
+            // Open Reset Confirmation Modal instead of resetting immediately
+            const btnReset = e.target.closest('#btn-reset-sim');
+            if (btnReset) {
+                document.getElementById('reset-confirm-modal').classList.remove('hidden');
+            }
+        });
+
+        // Reset Confirmation Modal Action Listeners
+        document.getElementById('btn-cancel-reset').addEventListener('click', () => {
+            document.getElementById('reset-confirm-modal').classList.add('hidden');
+        });
+
+        document.getElementById('btn-confirm-reset').addEventListener('click', () => {
+            simEntries = []; // Clear simulation entries
+            triggerSimulation();
+            setOptimizationState(false); // Hide reset button and revert optimization toggle to yellow
+            document.getElementById('reset-confirm-modal').classList.add('hidden');
+        });
+
+        document.getElementById('reset-confirm-modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('reset-confirm-modal')) {
+                document.getElementById('reset-confirm-modal').classList.add('hidden');
+            }
+        });
+
+        // Deployment Modal Actions
+        document.getElementById('btn-cancel-deploy').addEventListener('click', () => {
+            document.getElementById('opt-deploy-modal').classList.add('hidden');
+        });
+
+        document.getElementById('btn-run-deploy').addEventListener('click', () => {
+            document.getElementById('opt-deploy-modal').classList.add('hidden');
+            try {
+                runAutoOptimization();
+                setOptimizationState(true); // Turns button green, text to "OPTIMIZED", & reveals reset button
+            } catch(err) {
+                console.error("Optimization failed:", err);
+            }
+        });
+
+        function runAutoOptimization() {
+            simEntries = []; // Start fresh
+            
+            const intervalType = document.getElementById('slicer-interval').value;
+            let durationMins = 60;
+            if (intervalType === '15min') durationMins = 15;
+            if (intervalType === 'daily') durationMins = 1440;
+
+            const bagsByTime = new Map();
+
+            currentFilteredBags.forEach(b => {
+                if (!b.timestamp) return;
+                const d = new Date(b.timestamp);
+                const bMins = d.getHours() * 60 + d.getMinutes();
+                const binMins = bMins - (bMins % durationMins);
+                
+                const h = Math.floor(binMins / 60);
+                const m = binMins % 60;
+                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+
+                if (!bagsByTime.has(timeStr)) {
+                    bagsByTime.set(timeStr, { MTB: 0, SAT: 0 });
+                }
+                
+                const cArea = (b.chute || '').toUpperCase();
+                if (cArea.startsWith('MC')) {
+                    bagsByTime.get(timeStr).SAT++;
+                } else {
+                    bagsByTime.get(timeStr).MTB++;
+                }
+            });
+
+            // Target max utilization capacity params
+            const lorryCap = 60; 
+            const trolleyCap = 40; 
+
+            bagsByTime.forEach((counts, timeStr) => {
+                const getFleetMath = (bagCount) => {
+                    let L = Math.floor(bagCount / lorryCap);
+                    let rem = bagCount % lorryCap;
+                    let T = 0;
+                    if (rem > trolleyCap) L++;
+                    else if (rem > 0) T++;
+                    return { L, T };
+                };
+
+                const mtb = getFleetMath(counts.MTB);
+                const sat = getFleetMath(counts.SAT);
+
+                const addAutoTransports = (type, cap, count) => {
+                    for(let i=0; i<count; i++) {
+                        const newId = Date.now().toString() + Math.floor(Math.random()*100000) + i;
+                        const sameTypeInputs = simEntries.filter(e => e.time === timeStr && e.type === type).length;
+                        simEntries.push({
+                            id: newId,
+                            time: timeStr,
+                            type: type,
+                            cap: cap,
+                            name: `${type} ${sameTypeInputs + 1} (${cap})`
+                        });
+                    }
+                };
+
+                addAutoTransports('Lorry', lorryCap, mtb.L + sat.L);
+                addAutoTransports('Trolley', trolleyCap, mtb.T + sat.T);
+            });
+
+            triggerSimulation();
+        }
+
+        // --- SUMMARY DASHBOARD LOGIC ---
+        const simSummaryModal = document.getElementById('sim-summary-modal');
+        
+        if (simSummaryModal) {
+            document.getElementById('close-sim-summary-modal').addEventListener('click', () => {
+                simSummaryModal.classList.add('hidden');
+            });
+            
+            simSummaryModal.addEventListener('click', (e) => {
+                if (e.target === simSummaryModal) simSummaryModal.classList.add('hidden');
+            });
+
+            // Toggle Dropdown logic
+            const simChartTypeSelect = document.getElementById('sim-chart-type-select');
+            if (simChartTypeSelect) {
+                simChartTypeSelect.addEventListener('change', (e) => {
+                    simChartType = e.target.value; // 'bar' or 'area'
+                    if (!simSummaryModal.classList.contains('hidden')) {
+                        window.renderSimSummaryChart();
+                    }
+                });
+            }
+        }
+
+        window.openSimSummaryModal = function() {
+            if (generatedTrips.length === 0) {
+                alert("No simulation data available. Please add transports first.");
+                return;
+            }
+
+            // Fill Custom Tooltip Values for Y-Axis hover
+            let blockBags = [];
+            generatedTrips.forEach(t => { if(t.bags) blockBags.push(...t.bags); });
+            
+            let dates = new Set(blockBags.map(b => b.dateOnlyISO).filter(d => d));
+            let dateDisplay = "Multiple Dates";
+            let dateArr = Array.from(dates);
+            if (dateArr.length === 1 && dateArr[0]) {
+                let parts = dateArr[0].split('-');
+                if(parts.length === 3) dateDisplay = `${parts[2]}/${parts[1]}/${parts[0]}`;
+            }
+            
+            let headerReclaimName = filterState.reclaim.includes('ALL') ? 'All Areas' : filterState.reclaim.join(', ');
+
+            let totalLorry = 0;
+            let totalTrolley = 0;
+            let totalMins = 0;
+            let tripCount = 0;
+
+            generatedTrips.forEach(t => {
+                if (t.type === 'Lorry') totalLorry += (t.bags ? t.bags.length : 0);
+                if (t.type === 'Trolley') totalTrolley += (t.bags ? t.bags.length : 0);
+                totalMins += (t.mins || 0);
+                tripCount++;
+            });
+
+            let avgWorkload = tripCount > 0 ? Math.round(totalMins / tripCount) : 0;
+
+            document.getElementById('sim-sum-date').textContent = dateDisplay;
+            document.getElementById('sim-sum-area').textContent = headerReclaimName;
+            document.getElementById('sim-sum-bags').textContent = (totalLorry + totalTrolley).toLocaleString();
+            document.getElementById('sim-sum-lorry').textContent = totalLorry.toLocaleString();
+            document.getElementById('sim-sum-trolley').textContent = totalTrolley.toLocaleString();
+            document.getElementById('sim-sum-avg-workload').textContent = avgWorkload + 'm';
+
+            // Populate Table
+            const tbody = document.getElementById('sim-summary-tbody');
+            const sortedTrips = [...generatedTrips].sort((a,b) => a.time.localeCompare(b.time) || a.type.localeCompare(b.type));
+            
+            tbody.innerHTML = sortedTrips.map(t => {
+                const isLorry = t.type === 'Lorry';
+                const typeTextColor = isLorry ? 'text-blue-600' : 'text-green-600';
+                const cleanName = t.name.split(' (')[0]; // Drops capacity suffix
+                
+                // Calculate flight and avg hour before std for this trip specifically
+                let flights = new Set();
+                let sumHour = 0;
+                let validCount = 0;
+                if (t.bags) {
+                    t.bags.forEach(b => {
+                        if (b.flight && b.flight !== '-') flights.add(b.flight);
+                        if (b.hourBeforeStdNum !== null) {
+                            sumHour += b.hourBeforeStdNum;
+                            validCount++;
+                        }
+                    });
+                }
+                
+                let flightStr = Array.from(flights).join('<br>');
+                if (!flightStr) flightStr = '-';
+                
+                let avgStdStr = '-';
+                let hourTextColor = 'text-gray-600';
+                if (validCount > 0) {
+                    let avgNum = sumHour / validCount;
+                    avgStdStr = formatDecimalToHHmm(avgNum);
+                    if (avgNum < 0) hourTextColor = 'text-red-600 font-bold';
+                    else if (avgNum <= 1) hourTextColor = 'text-yellow-600 font-bold';
+                    else hourTextColor = 'text-green-600 font-bold';
+                }
+
+                return `
+                <tr class="hover:bg-gray-50 transition border-b border-gray-100">
+                    <td class="py-2.5 px-2 text-center font-mono font-bold text-gray-800 text-sm whitespace-nowrap">${t.time}</td>
+                    <td class="py-2.5 px-2 text-center font-bold ${typeTextColor} text-sm whitespace-nowrap">${cleanName}</td>
+                    <td class="py-2.5 px-2 text-center font-bold text-gray-700 text-xs leading-tight">${flightStr}</td>
+                    <td class="py-2.5 px-2 text-center font-mono text-gray-600 text-sm">${t.cap}</td>
+                    <td class="py-2.5 px-2 text-center font-bold text-gray-800 text-sm">${t.totalTrips || 0}</td>
+                    <td class="py-2.5 px-2 text-center font-bold text-blue-600 text-sm">${t.bags ? t.bags.length : 0}</td>
+                    <td class="py-2.5 px-2 text-center font-mono ${hourTextColor} text-sm">${avgStdStr}</td>
+                    <td class="py-2.5 px-2 text-center font-mono font-bold text-gray-700 text-sm">${Math.round(t.mins || 0)}</td>
+                </tr>
+            `}).join('');
+
+            simSummaryModal.classList.remove('hidden');
+
+            setTimeout(() => {
+                window.renderSimSummaryChart();
+                Plotly.Plots.resize('sim-summary-chart');
+            }, 350);
+        };
+
+        window.renderSimSummaryChart = function() {
+            const timeMap = {};
+            const hours24_even = Array.from({length: 12}, (_, i) => `${String(i * 2).padStart(2, '0')}:00`);
+            const hours24 = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}:00`);
+            
+            generatedTrips.forEach(t => {
+                if(!timeMap[t.time]) timeMap[t.time] = { Lorry: 0, Trolley: 0 };
+                timeMap[t.time][t.type] += t.bags ? t.bags.length : 0;
+            });
+            
+            hours24.forEach(h => {
+                if(!timeMap[h]) timeMap[h] = { Lorry: 0, Trolley: 0 };
+            });
+
+            const times = Object.keys(timeMap).sort();
+            const lorryBags = times.map(time => timeMap[time].Lorry);
+            const trolleyBags = times.map(time => timeMap[time].Trolley);
+            
+            let trace1, trace2;
+            
+            if (simChartType === 'bar') {
+                trace1 = { 
+                    x: times, y: lorryBags, name: 'Lorry', 
+                    type: 'bar', 
+                    marker: { color: 'rgba(59, 130, 246, 0.5)', line: { color: 'rgb(59, 130, 246)', width: 1.5 } },
+                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                };
+                trace2 = { 
+                    x: times, y: trolleyBags, name: 'Trolley', 
+                    type: 'bar', 
+                    marker: { color: 'rgba(16, 185, 129, 0.5)', line: { color: 'rgb(16, 185, 129)', width: 1.5 } },
+                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                };
+            } else {
+                trace1 = { 
+                    x: times, y: lorryBags, name: 'Lorry', 
+                    type: 'scatter', mode: 'lines', stackgroup: 'one', 
+                    line: { shape: 'spline', smoothing: 0.4, color: 'rgba(59, 130, 246, 0.8)', width: 2 },
+                    fillcolor: 'rgba(59, 130, 246, 0.5)',
+                    marker: { color: 'rgba(59, 130, 246, 0.8)' },
+                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                };
+                trace2 = { 
+                    x: times, y: trolleyBags, name: 'Trolley', 
+                    type: 'scatter', mode: 'lines', stackgroup: 'one', 
+                    line: { shape: 'spline', smoothing: 0.4, color: 'rgba(16, 185, 129, 0.8)', width: 2 },
+                    fillcolor: 'rgba(16, 185, 129, 0.5)',
+                    marker: { color: 'rgba(16, 185, 129, 0.8)' },
+                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                };
+            }
+            
+            const layout = { 
+                barmode: 'stack',
+                margin: { t: 20, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#f9fafb',
+                plot_bgcolor: '#f9fafb', 
+                xaxis: { 
+                    title: '', 
+                    tickvals: hours24_even, 
+                    ticktext: hours24_even,
+                    tickfont: { size: 12 }, 
+                    tickangle: 0,
+                    range: simChartType === 'bar' ? [-0.5, 23.5] : [0, 23]
+                },
+                yaxis: { 
+                    title: { text: 'Bags Processed', standoff: 30 },
+                    tickfont: { size: 12 }
+                },
+                legend: { orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right', x: 1 },
+                hovermode: 'x unified',
+                hoverlabel: {
+                    bgcolor: '#1f2937',     
+                    bordercolor: '#374151', 
+                    namelength: -1,         
+                    align: 'left',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                }
+            };
+
+            Plotly.react('sim-summary-chart', [trace1, trace2], layout, PLOTLY_CONFIG);
+        }
+
+        // Export Simulation Summary
+        const btnExportSim = document.getElementById('btn-export-sim');
+        if (btnExportSim) {
+            btnExportSim.addEventListener('click', () => {
+                if(generatedTrips.length === 0) return alert('No simulation data to export.');
+                
+                const exportData = generatedTrips.map(t => ({
+                    'Time': t.time,
+                    'Transport Name': t.name,
+                    'Capacity': t.cap,
+                    'Loaded Bags': t.bags ? t.bags.length : 0,
+                    'Total Trips': t.totalTrips || 0,
+                    'Workload (Mins)': Math.round(t.mins || 0)
+                }));
+
+                const ws = XLSX.utils.json_to_sheet(exportData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Sim_Summary");
+                XLSX.writeFile(wb, "Simulation_Summary_Export.xlsx");
+            });
+        }
+
+        // Attach Chart JPEG Export Listeners
+        document.querySelectorAll('.export-chart-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const targetId = e.currentTarget.getAttribute('data-target');
+                const chartDiv = document.getElementById(targetId);
+                
+                if (chartDiv && chartDiv.data && chartDiv.data.length > 0) {
+                    Plotly.downloadImage(chartDiv, {
+                        format: 'jpeg',
+                        width: chartDiv.clientWidth,
+                        height: chartDiv.clientHeight,
+                        filename: `${targetId}_export`,
+                        scale: 2
+                    });
+                } else {
+                    alert('No chart data available to export.');
+                }
+            });
+        });
+
+        // Attach Modal Listeners
+        const btnOverlapDetails = document.getElementById('btn-overlap-details');
+        const overlapModal = document.getElementById('overlap-modal');
+        const closeOverlapModal = document.getElementById('close-overlap-modal');
+
+        btnOverlapDetails.addEventListener('click', () => overlapModal.classList.remove('hidden'));
+        closeOverlapModal.addEventListener('click', () => overlapModal.classList.add('hidden'));
+        overlapModal.addEventListener('click', (e) => {
+            if (e.target === overlapModal) overlapModal.classList.add('hidden');
+        });
+
+        // Trip Modal Listeners
+        const tripModal = document.getElementById('trip-modal');
+        document.getElementById('close-trip-modal').addEventListener('click', () => tripModal.classList.add('hidden'));
+        tripModal.addEventListener('click', (e) => {
+            if (e.target === tripModal) tripModal.classList.add('hidden');
+        });
+
+        let currentOpenTripId = null;
+        
+        // Smart Memory (Delete Single Transport)
+        document.getElementById('btn-delete-trip').addEventListener('click', () => {
+            if (currentOpenTripId) {
+                simEntries = simEntries.filter(e => e.id !== currentOpenTripId);
+                tripModal.classList.add('hidden');
+                triggerSimulation();
+                setOptimizationState(false); // Reverts button back to yellow
+            }
+        });
+
+        window.openTripModal = function(tripId) {
+            const entry = generatedTrips.find(t => t.id === tripId);
+            if (!entry) return;
+            
+            currentOpenTripId = tripId;
+            document.getElementById('trip-modal-title').innerHTML = `Transport Details: <span class="text-blue-600">${entry.name}</span> at ${entry.time}`;
+            
+            const grouped = {};
+            (entry.bags || []).forEach(b => {
+                const key = `${b.flight}::${b.chute}`;
+                if (!grouped[key]) {
+                    grouped[key] = { flight: b.flight, chute: b.chute, sumHour: 0, validCount: 0, count: 0 };
+                }
+                grouped[key].count++;
+                if (b.hourBeforeStdNum !== null) {
+                    grouped[key].sumHour += b.hourBeforeStdNum;
+                    grouped[key].validCount++;
+                }
+            });
+
+            const tbody = document.getElementById('trip-modal-body');
+            
+            if (Object.keys(grouped).length > 0) {
+                tbody.innerHTML = Object.values(grouped).sort((a,b) => b.count - a.count).map(g => {
+                    let avgStr = '-';
+                    let hourTextColor = 'text-gray-600';
+                    if (g.validCount > 0) {
+                        let avgNum = g.sumHour / g.validCount;
+                        avgStr = formatDecimalToHHmm(avgNum);
+                        if (avgNum < 0) hourTextColor = 'text-red-600 font-bold';
+                        else if (avgNum <= 1) hourTextColor = 'text-yellow-600 font-bold';
+                        else hourTextColor = 'text-green-600 font-bold';
+                    }
+                    return `
+                    <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+                        <td class="py-2 px-2 text-sm font-bold text-gray-800">${g.flight}</td>
+                        <td class="py-2 px-2 text-sm text-center font-mono font-bold text-blue-600">${g.count}</td>
+                        <td class="py-2 px-2 text-sm text-center text-gray-600">${g.chute}</td>
+                        <td class="py-2 px-2 text-sm text-center font-mono ${hourTextColor}">${avgStr}</td>
+                    </tr>
+                `}).join('');
+            } else {
+                tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-gray-400 italic">No bags assigned to this transport.</td></tr>`;
+            }
+            
+            document.getElementById('trip-modal-total').innerHTML = `Processed: <b>${entry.bags.length}</b> <span class="mx-2 text-gray-300">|</span> Trips: <b>${entry.totalTrips}</b> <span class="mx-2 text-gray-300">|</span> Cap: <b>${entry.cap}/trip</b>`;
+            tripModal.classList.remove('hidden');
+        };
+
+        // Table Tooltip Logic
+        const tableCustomTooltip = document.getElementById('table-custom-tooltip');
+        const tableTooltipContent = document.getElementById('table-tooltip-content');
+        const reclaimTbody = document.getElementById('reclaim-tbody');
+
+        reclaimTbody.addEventListener('mouseover', (e) => {
+            const cell = e.target.closest('.flight-cell');
+            if (!cell) return;
+
+            const flt = cell.getAttribute('data-flight');
+            const std = cell.getAttribute('data-std');
+            const disp = cell.getAttribute('data-dispatch');
+            const chute = cell.getAttribute('data-chute');
+            const gh = cell.getAttribute('data-gh');
+            
+            let assignment = 'UNKNOWN';
+            const cup = chute.toUpperCase();
+            if (cup.startsWith('MA') || cup.startsWith('MB')) assignment = 'MTB';
+            else if (cup.startsWith('MC1') || cup.startsWith('MC2')) assignment = 'SAT';
+
+            tableTooltipContent.innerHTML = `
+                <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">Flight Details: <span class="text-blue-400">${flt}</span></div>
+                <div class="mb-1"><span class="text-gray-400">STD:</span> <span class="font-bold text-white ml-1">${stripSecondsFromDate(std)}</span></div>
+                <div class="mb-1"><span class="text-gray-400">Dispatch Time:</span> <span class="font-bold text-white ml-1">${disp}</span></div>
+                <div class="mb-1"><span class="text-gray-400">Flight Assignment:</span> <span class="font-bold text-white ml-1">${assignment}</span></div>
+                <div class="mb-1"><span class="text-gray-400">Chute:</span> <span class="font-bold text-white ml-1">${chute}</span></div>
+                <div><span class="text-gray-400">Ground Handler:</span> <span class="font-bold text-white ml-1">${gh}</span></div>
+            `;
+            
+            tableCustomTooltip.classList.remove('invisible', 'opacity-0');
+            tableCustomTooltip.classList.add('opacity-100', 'visible');
+        });
+
+        reclaimTbody.addEventListener('mousemove', (e) => {
+            if (!tableCustomTooltip.classList.contains('invisible')) {
+                tableCustomTooltip.style.left = e.clientX + 'px';
+                tableCustomTooltip.style.top = e.clientY + 'px';
+            }
+        });
+
+        reclaimTbody.addEventListener('mouseout', (e) => {
+            const cell = e.target.closest('.flight-cell');
+            if (!cell) return;
+            tableCustomTooltip.classList.add('invisible', 'opacity-0');
+            tableCustomTooltip.classList.remove('opacity-100', 'visible');
+        });
+
+        // Attach Base Event Listeners
+        document.getElementById('upload').addEventListener('change', handleFileUpload);
+        
+        const filterIds = [
+            'filter-start-date', 'filter-end-date',
+            'slicer-interval', 'rummage-sort'
+        ];
+        
+        function triggerFilters() {
+            setTimeout(() => { applyFiltersAndRender(); }, 10);
+        }
+
+        filterIds.forEach(id => document.getElementById(id).addEventListener('change', triggerFilters));
+        document.getElementById('slicer-search-bag').addEventListener('input', triggerFilters);
+        document.getElementById('reset-filters').addEventListener('click', resetFilters);
+
+        // --- EXPORT TO EXCEL ---
+        document.getElementById('btn-export-excel').addEventListener('click', () => {
+            if (currentFilteredBags.length === 0) return;
+            
+            const exportData = currentFilteredBags.map(bag => ({
+                'EVENT TIME': bag.eventTime,
+                'FLIGHT': bag.flight,
+                'STD': stripSecondsFromDate(bag.std),
+                'BAGTAGID': bag.bagTagId,
+                'RUMMAGE': bag.rummage,
+                'RUMMAGE AREA': bag.rummageArea,
+                'REASON': bag.reason,
+                'CHUTE': bag.chute,
+                'GROUND HANDLER': bag.groundHandler,
+                'HOUR BEFORE STD': bag.hourBeforeStd
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Rummage_Details");
+            XLSX.writeFile(wb, "Rummage_Details_Export.xlsx");
+        });
+
+        // --- Custom Searchable Flight Dropdown Interactions ---
+        const flightMenu = document.getElementById('custom-flight-menu');
+        const flightSelect = document.getElementById('custom-flight-select');
+        const flightSearchInput = document.getElementById('flight-search-input');
+        const hiddenFlightInput = document.getElementById('slicer-flight');
+
+        flightSelect.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.multi-select-menu').forEach(m => m.classList.add('hidden'));
+            flightMenu.classList.toggle('hidden');
+            if(!flightMenu.classList.contains('hidden')) flightSearchInput.focus();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!flightMenu.contains(e.target) && !flightSelect.contains(e.target)) {
+                flightMenu.classList.add('hidden');
+            }
+        });
+
+        flightSearchInput.addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            document.querySelectorAll('.flight-item').forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(term) ? 'block' : 'none';
+            });
+        });
+
+        document.getElementById('opt-all-flights').addEventListener('click', () => {
+            hiddenFlightInput.value = 'ALL';
+            document.getElementById('custom-flight-text').textContent = 'All Flights';
+            flightMenu.classList.add('hidden');
+            triggerFilters();
+        });
+
+        document.getElementById('opt-shifted-flights').addEventListener('click', () => {
+            hiddenFlightInput.value = 'SHIFTED_FLIGHTS';
+            document.getElementById('custom-flight-text').textContent = 'Flight Shifted';
+            flightMenu.classList.add('hidden');
+            triggerFilters();
+        });
+
+        // Initialize Custom Dropdowns
+        setupDropdownToggle('btn-reason', 'menu-reason');
+        setupDropdownToggle('btn-handler', 'menu-handler');
+        setupDropdownToggle('btn-reclaim', 'menu-reclaim');
+
+        // --- Core Data Upload and Parsing Logic ---
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('hidden');
+
+            setTimeout(() => {
+                try {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
+                            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
+
+                            processBagEntities(rawRows);
+                            setDefaultDateFilters();
+                            populateFilterDropdowns();
+                            
+                            document.getElementById('btn-save-as').classList.remove('hidden');
+                            document.getElementById('kpi-section').classList.remove('hidden');
+                            document.getElementById('charts-section').classList.remove('hidden');
+                            
+                            applyFiltersAndRender();
+                        } catch (err) {
+                            console.error("Data Processing Error:", err);
+                        } finally {
+                            overlay.classList.add('hidden');
+                        }
+                    };
+                    reader.readAsArrayBuffer(file);
+                } catch (err) {
+                    console.error("File Read Error:", err);
+                    overlay.classList.add('hidden');
+                }
+            }, 50);
+        }
+
+        function getRawValue(row, possibleKeys) {
+            if (!row) return '-';
+            const rowKeys = Object.keys(row);
+            for (const targetKey of possibleKeys) {
+                const cleanedTarget = targetKey.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                for (const key of rowKeys) {
+                    const cleanedKey = key.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                    if (cleanedKey === cleanedTarget) {
+                        const val = row[key];
+                        if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+                    }
+                }
+            }
+            return '-';
+        }
+
+        function parseHourString(timeStr) {
+            if (timeStr === undefined || timeStr === null || timeStr === '') return null;
+            const str = String(timeStr).trim();
+            if (str === '-') return null;
+            
+            let isNegative = str.startsWith('-');
+            let cleanStr = isNegative ? str.substring(1) : str;
+            
+            if (cleanStr.includes(':')) {
+                let parts = cleanStr.split(':');
+                let h = parseInt(parts[0], 10) || 0;
+                let m = parseInt(parts[1], 10) || 0;
+                let decimal = h + (m / 60);
+                return isNegative ? -decimal : decimal;
+            }
+            
+            let num = parseFloat(str);
+            return isNaN(num) ? null : num;
+        }
+
+        function stripSecondsFromDate(timestampStr) {
+            if (!timestampStr || timestampStr === '-') return '-';
+            const parts = timestampStr.split(':');
+            return parts.length >= 2 ? parts.slice(0, 2).join(':') : timestampStr;
+        }
+
+        function parseCustomDateToJS(dateStr) {
+            if (!dateStr || dateStr === '-') return null;
+            const parts = dateStr.split(' ');
+            if (parts.length < 2) return null;
+            const [dd, mm, yy] = parts[0].split('/');
+            const [hh, min, ss] = parts[1].split(':');
+            if (!dd || !mm || !yy || !hh || !min) return null;
+            const year = yy.length === 2 ? 2000 + parseInt(yy, 10) : parseInt(yy, 10);
+            return new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10), parseInt(hh, 10), parseInt(min, 10), parseInt(ss || 0, 10));
+        }
+
+        function formatExcelDate(val) {
+            if (val === undefined || val === null || val === '' || val === '-') return '-';
+            const valStr = String(val).trim().replace(/[\s\u00a0]+/g, ' ');
+            if (valStr === '' || valStr === '-') return '-';
+
+            if (/^\d+(\.\d+)?$/.test(valStr)) {
+                const serial = parseFloat(valStr);
+                if (serial > 0) {
+                    const utc_days = Math.floor(serial - 25569);
+                    const fractional = serial - Math.floor(serial);
+                    let total_seconds = Math.round(fractional * 86400);
+                    let extraDays = 0;
+                    if (total_seconds >= 86400) { total_seconds -= 86400; extraDays = 1; }
+                    const dateObj = new Date((utc_days + extraDays) * 86400 * 1000);
+                    const sec = total_seconds % 60;
+                    const total_mins = Math.floor(total_seconds / 60);
+                    const min = total_mins % 60;
+                    const hr = Math.floor(total_mins / 60);
+                    
+                    return `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${String(dateObj.getUTCFullYear()).slice(-2)} ${hr}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+                }
+            }
+
+            const match = valStr.match(/^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?$/i);
+            if (match) {
+                let [_, p1, p2, p3, hrStr, minStr, secStr, ampm] = match;
+                let dd, mm, yyyy;
+                if (p1.length === 4) { yyyy = parseInt(p1, 10); mm = parseInt(p2, 10); dd = parseInt(p3, 10); } 
+                else { dd = parseInt(p1, 10); mm = parseInt(p2, 10); yyyy = parseInt(p3, 10); if (yyyy < 100) yyyy += 2000; }
+
+                let hr = hrStr !== undefined ? parseInt(hrStr, 10) : 0;
+                let min = minStr !== undefined ? parseInt(minStr, 10) : 0;
+                let sec = secStr !== undefined ? parseInt(secStr, 10) : 0;
+
+                if (ampm) {
+                    const upperAmPm = ampm.toUpperCase();
+                    if (upperAmPm === 'PM' && hr < 12) hr += 12;
+                    if (upperAmPm === 'AM' && hr === 12) hr = 0;
+                }
+
+                return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy).slice(-2)} ${hr}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+            }
+            return valStr;
+        }
+
+        function extractISODate(formattedDisplayDate) {
+            if (!formattedDisplayDate || formattedDisplayDate === '-') return '';
+            const parts = formattedDisplayDate.split(' ')[0].split('/');
+            if (parts.length === 3) {
+                const yy = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                return `${yy}-${parts[1]}-${parts[0]}`;
+            }
+            return '';
+        }
+
+        function processBagEntities(rows) {
+            bagDataset.clear();
+
+            rows.forEach((row, index) => {
+                const rawBagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
+                const bagTagId = (rawBagTag !== '-' && rawBagTag !== '') ? String(rawBagTag).trim() : `UNKNOWN_${index + 1}`;
+
+                const rawDate = getRawValue(row, ['DATE', 'EVENT DATE']);
+                const rawTime = getRawValue(row, ['TIME', 'EVENT TIME']);
+                const rawStd  = getRawValue(row, ['STD', 'STD TIME', 'STD_TIME', 'SCHEDULED TIME']);
+
+                let combinedEventTime = '-';
+                if (rawDate !== '-' && rawTime !== '-') {
+                    if (/^\d+(\.\d+)?$/.test(String(rawDate).trim()) && /^\d+(\.\d+)?$/.test(String(rawTime).trim())) {
+                        combinedEventTime = formatExcelDate(parseFloat(rawDate) + parseFloat(rawTime));
+                    } else {
+                        combinedEventTime = formatExcelDate(`${rawDate} ${rawTime}`);
+                    }
+                } else if (rawDate !== '-') {
+                    combinedEventTime = formatExcelDate(rawDate);
+                }
+
+                const parsedDt = parseCustomDateToJS(combinedEventTime);
+                const rawHourStd = String(getRawValue(row, ['HOUR BEFORE STD', 'HOURS BEFORE STD', 'HOURS_BEFORE_STD', 'HOUR_BEFORE_STD'])).trim();
+
+                const bagEntity = {
+                    bagTagId:      bagTagId,
+                    eventTime:     combinedEventTime,
+                    timestamp:     parsedDt ? parsedDt.getTime() : 0, 
+                    dateOnlyISO:   extractISODate(combinedEventTime), 
+                    std:           formatExcelDate(rawStd),
+                    flight:        String(getRawValue(row, ['FLIGHT', 'FLIGHT NO', 'FLIGHT_NO'])).trim(),
+                    rummage:       String(getRawValue(row, ['RUMMAGE', 'RUMMAGE STATUS', 'RUMMAGE_STATUS'])).trim(),
+                    rummageArea:   String(getRawValue(row, ['RUMMAGE AREA', 'RUMMAGE_AREA', 'RECLAIM AREA', 'AREA'])).trim(),
+                    reason:        String(getRawValue(row, ['REASON', 'RUMMAGE REASON'])).trim(),
+                    chute:         String(getRawValue(row, ['CHUTE', 'CHUTE ID', 'CHUTE_ID'])).trim(),
+                    groundHandler: String(getRawValue(row, ['GROUND HANDLER', 'GROUND_HANDLER', 'HANDLER'])).trim(),
+                    hourBeforeStd: rawHourStd,
+                    hourBeforeStdNum: parseHourString(rawHourStd) 
+                };
+
+                bagDataset.set(bagTagId, bagEntity);
+            });
+        }
+
+        function setDefaultDateFilters() {
+            let maxDate = '';
+            bagDataset.forEach(bag => {
+                if (bag.dateOnlyISO && bag.dateOnlyISO > maxDate) maxDate = bag.dateOnlyISO;
+            });
+            if (maxDate) {
+                document.getElementById('filter-start-date').value = maxDate;
+                document.getElementById('filter-end-date').value = maxDate;
+            }
+        }
+
+        function populateMultiSelect(menuId, textId, optionsArray, defaultText, stateArray, isBlue = false) {
+            const menu = document.getElementById(menuId);
+            menu.innerHTML = '';
+            
+            const allLabel = document.createElement('label');
+            allLabel.className = 'flex items-center p-2 hover:bg-gray-50 cursor-pointer text-sm font-semibold border-b text-blue-600';
+            allLabel.innerHTML = `<input type="checkbox" value="ALL" class="mr-2 rounded" ${stateArray.includes('ALL') ? 'checked' : ''}> <span class="truncate">${defaultText}</span>`;
+            menu.appendChild(allLabel);
+
+            optionsArray.forEach(opt => {
+                const lbl = document.createElement('label');
+                lbl.className = `flex items-center p-2 hover:bg-gray-50 cursor-pointer text-sm border-b border-gray-50 ${isBlue ? 'font-semibold text-blue-700' : 'text-gray-700'}`;
+                lbl.innerHTML = `<input type="checkbox" value="${opt}" class="mr-2 rounded" ${stateArray.includes(opt) ? 'checked' : ''}> <span class="truncate">${opt}</span>`;
+                menu.appendChild(lbl);
+            });
+
+            const checkboxes = menu.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const val = e.target.value;
+                    if (val === 'ALL') {
+                        if (e.target.checked) {
+                            stateArray.length = 0;
+                            stateArray.push('ALL');
+                            checkboxes.forEach(c => c.checked = (c.value === 'ALL'));
+                        } else {
+                            stateArray.length = 0;
+                        }
+                    } else {
+                        const allCb = menu.querySelector('input[value="ALL"]');
+                        if (allCb.checked) {
+                            allCb.checked = false;
+                            stateArray.length = 0;
+                        }
+                        if (e.target.checked) stateArray.push(val);
+                        else {
+                            const idx = stateArray.indexOf(val);
+                            if (idx > -1) stateArray.splice(idx, 1);
+                        }
+                        if (stateArray.length === 0) {
+                            stateArray.push('ALL');
+                            allCb.checked = true;
+                        }
+                    }
+
+                    const textEl = document.getElementById(textId);
+                    if (stateArray.includes('ALL')) textEl.textContent = defaultText;
+                    else if (stateArray.length === 1) textEl.textContent = stateArray[0];
+                    else textEl.textContent = `${stateArray.length} Selected`;
+
+                    triggerFilters();
+                });
+            });
+        }
+
+        function populateFilterDropdowns() {
+            const flights = new Set();
+            const reasons = new Set();
+            const handlers = new Set();
+            const reclaims = new Set();
+
+            bagDataset.forEach(bag => {
+                if (bag.flight && bag.flight !== '-') flights.add(bag.flight);
+                if (bag.reason && bag.reason !== '-') reasons.add(bag.reason);
+                if (bag.groundHandler && bag.groundHandler !== '-') handlers.add(bag.groundHandler);
+                if (bag.rummageArea && bag.rummageArea !== '-') reclaims.add(bag.rummageArea);
+            });
+
+            let cIdx = 0;
+            Array.from(reclaims).sort().forEach(area => {
+                if(!areaColorMap.has(area)) {
+                    areaColorMap.set(area, areaColorPalette[cIdx % areaColorPalette.length]);
+                    cIdx++;
+                }
+            });
+
+            const flightOptionsList = document.getElementById('flight-options-list');
+            flightOptionsList.innerHTML = '';
+            Array.from(flights).sort().forEach(f => {
+                const div = document.createElement('div');
+                div.className = 'px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm flight-item rounded-md mb-0.5 text-gray-700 font-medium transition-colors';
+                div.textContent = f;
+                div.addEventListener('click', () => {
+                    hiddenFlightInput.value = f;
+                    document.getElementById('custom-flight-text').textContent = f;
+                    flightMenu.classList.add('hidden');
+                    triggerFilters();
+                });
+                flightOptionsList.appendChild(div);
+            });
+
+            populateMultiSelect('menu-reason', 'text-reason', Array.from(reasons).sort(), 'All Reasons', filterState.reason);
+            populateMultiSelect('menu-handler', 'text-handler', Array.from(handlers).sort(), 'All GH', filterState.handler);
+            populateMultiSelect('menu-reclaim', 'text-reclaim', Array.from(reclaims).sort(), 'All Areas', filterState.reclaim, true);
+        }
+
+        function applyFiltersAndRender() {
+            const startDateStr = document.getElementById('filter-start-date').value;
+            const endDateStr = document.getElementById('filter-end-date').value;
+            const selectedFlight = hiddenFlightInput.value;
+            const searchBagTag = document.getElementById('slicer-search-bag').value.trim().toLowerCase();
+
+            const filteredBags = [];
+
+            bagDataset.forEach((bag) => {
+                if (startDateStr && bag.dateOnlyISO < startDateStr) return;
+                if (endDateStr && bag.dateOnlyISO > endDateStr) return;
+                
+                // FLIGHT SHIFTED LOGIC INTEGRATION
+                if (selectedFlight === 'SHIFTED_FLIGHTS') {
+                    if (!SHIFTED_FLIGHTS_LIST.includes(bag.flight)) return;
+                } else if (selectedFlight !== 'ALL' && bag.flight !== selectedFlight) {
+                    return;
+                }
+                
+                if (!filterState.reason.includes('ALL') && !filterState.reason.includes(bag.reason)) return;
+                if (!filterState.handler.includes('ALL') && !filterState.handler.includes(bag.groundHandler)) return;
+                if (!filterState.reclaim.includes('ALL') && !filterState.reclaim.includes(bag.rummageArea)) return;
+                if (searchBagTag !== '' && !bag.bagTagId.toLowerCase().includes(searchBagTag)) return;
+
+                filteredBags.push(bag);
+            });
+
+            currentFilteredBags = filteredBags; 
+
+            const btnExport = document.getElementById('btn-export-excel');
+            if (filteredBags.length > 0) {
+                btnExport.classList.remove('hidden');
+                btnExport.classList.add('flex');
+            } else {
+                btnExport.classList.add('hidden');
+                btnExport.classList.remove('flex');
+            }
+
+            const headerReclaimName = filterState.reclaim.includes('ALL') ? 'All Areas' : filterState.reclaim.join(', ');
+            document.getElementById('lbl-reclaim-name').textContent = headerReclaimName;
+            
+            const countStr = filteredBags.length > 500 ? `${filteredBags.length.toLocaleString()} (Showing top 500)` : filteredBags.length.toLocaleString();
+            document.getElementById('lbl-record-count').textContent = countStr;
+
+            renderKPIs(filteredBags);
+            renderTimeline(filteredBags);
+            renderRummageLoad(filteredBags);
+            renderTable(filteredBags);
+            
+            // New Histogram function call
+            renderDurationHistogram(filteredBags);
+            
+            triggerSimulation(); 
+        }
+
+        // --- NEW DURATION HISTOGRAM FUNCTION ---
+        function renderDurationHistogram(bags) {
+            const chartDiv = document.getElementById('chart-histogram');
+
+            // Check for empty data
+            if (bags.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                return;
+            }
+
+            // Extract valid "Hours Before STD" numerical values
+            const durations = bags
+                .map(b => b.hourBeforeStdNum)
+                .filter(val => val !== null && !isNaN(val));
+
+            // Fallback if no valid duration data exists
+            if (durations.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                return;
+            }
+
+            // Define the Histogram Trace (no xbins to allow auto-scaling)
+            const trace = {
+                x: durations,
+                type: 'histogram',
+                marker: {
+                    color: 'rgba(99, 102, 241, 0.7)', // Indigo-500
+                    line: { color: 'rgba(79, 70, 229, 1)', width: 1.5 } // Indigo-600
+                },
+                hovertemplate: `<span style="color: #d1d5db;">Time Before STD:</span> <b style="color: #ffffff;">%{x} hrs</b><br>` +
+                               `<span style="color: #d1d5db;">Bags Processed:</span> <b style="color: #ffffff;">%{y}</b><extra></extra>`
+            };
+
+            // Define Layout matching existing dashboard style
+            const layout = {
+                margin: { t: 30, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                xaxis: { 
+                    title: 'Hours Before STD',
+                    zeroline: false,
+                    tickfont: { color: '#4b5563' }
+                },
+                yaxis: { 
+                    title: { text: 'Number of Bags', standoff: 30 },
+                    zeroline: false,
+                    tickfont: { color: '#4b5563' }
+                },
+                hoverlabel: {
+                    bgcolor: '#1f2937', 
+                    bordercolor: '#374151',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                }
+            };
+
+            // Render Chart
+            Plotly.react(chartDiv, [trace], layout, PLOTLY_CONFIG);
+        }
+        // ---------------------------------------
+
+        function renderKPIs(bags) {
+            const totalBags = bags.length;
+            const uniqueFlightsList = bags.map(b => b.flight).filter(f => f && f !== '-');
+            const totalFlights = new Set(uniqueFlightsList).size;
+            
+            const mtbFlightsCount = new Set(bags.filter(b => {
+                const c = (b.chute || '').toUpperCase();
+                return c.startsWith('MA') || c.startsWith('MB');
+            }).map(b => b.flight)).size;
+
+            const satFlightsCount = new Set(bags.filter(b => {
+                const c = (b.chute || '').toUpperCase();
+                return c.startsWith('MC1') || c.startsWith('MC2');
+            }).map(b => b.flight)).size;
+
+            const avgBagsPerFlight = totalFlights > 0 ? (totalBags / totalFlights).toFixed(1) : '0';
+
+            let avgHourStd = '-';
+            let maxHourStdRaw = '-';
+            let minHourStdRaw = '-';
+            
+            let maxColorClass = 'text-gray-500';
+            let minColorClass = 'text-gray-500';
+
+            let minBag = null;
+            let maxBagForMinMax = null;
+
+            let maxVal = -Infinity;
+            let minVal = Infinity;
+            let sum = 0;
+            let validCount = 0;
+
+            bags.forEach(b => {
+                if (b.hourBeforeStdNum !== null) {
+                    sum += b.hourBeforeStdNum;
+                    validCount++;
+                    if (b.hourBeforeStdNum > maxVal) { maxVal = b.hourBeforeStdNum; maxBagForMinMax = b; }
+                    if (b.hourBeforeStdNum < minVal) { minVal = b.hourBeforeStdNum; minBag = b; }
+                }
+            });
+
+            if (validCount > 0) {
+                let avgNum = sum / validCount;
+                avgHourStd = formatDecimalToHHmm(avgNum);
+                maxHourStdRaw = formatDecimalToHHmm(maxVal);
+                minHourStdRaw = formatDecimalToHHmm(minVal);
+                
+                maxColorClass = maxVal < 0 ? 'text-red-400' : (maxVal <= 1 ? 'text-yellow-400' : 'text-green-400');
+                minColorClass = minVal < 0 ? 'text-red-400' : (minVal <= 1 ? 'text-yellow-400' : 'text-green-400');
+            }
+
+            document.getElementById('kpi-bags').textContent = totalBags.toLocaleString();
+            document.getElementById('kpi-flights').textContent = totalFlights.toLocaleString();
+            
+            if(document.getElementById('tooltip-flights-mtb')) {
+                document.getElementById('tooltip-flights-mtb').innerHTML = `<span class="text-gray-400">MTB:</span> <span class="font-bold text-green-400 ml-1">${mtbFlightsCount}</span>`;
+            }
+            if(document.getElementById('tooltip-flights-sat')) {
+                document.getElementById('tooltip-flights-sat').innerHTML = `<span class="text-gray-400">SAT:</span> <span class="font-bold text-yellow-400 ml-1">${satFlightsCount}</span>`;
+            }
+
+            document.getElementById('kpi-avg-bags').textContent = avgBagsPerFlight;
+            document.getElementById('kpi-avg-time-std').textContent = avgHourStd;
+            
+            const kpiMaxEl = document.getElementById('kpi-max-time-std');
+            kpiMaxEl.textContent = maxHourStdRaw;
+            kpiMaxEl.className = `text-xl ${maxColorClass}`;
+            
+            const kpiMinEl = document.getElementById('kpi-min-time-std');
+            kpiMinEl.textContent = minHourStdRaw;
+            kpiMinEl.className = `text-xl ${minColorClass}`;
+            
+            const tooltipBox = document.getElementById('tooltip-maxmin-std');
+            if(tooltipBox && validCount > 0 && maxBagForMinMax && minBag) {
+                tooltipBox.innerHTML = `
+                    <div class="font-bold text-gray-300 uppercase tracking-wide border-b border-gray-600 pb-1 mb-2">DETAILS</div>
+                    <div class="mb-2">
+                        <div class="${maxColorClass} font-bold text-[0.65rem] uppercase mb-0.5">Max (${maxHourStdRaw})</div>
+                        <div class="text-gray-400 leading-tight">Flight: <span class="text-white">${maxBagForMinMax.flight}</span></div>
+                        <div class="text-gray-400 leading-tight">Dispatch: <span class="text-white">${maxBagForMinMax.eventTime}</span></div>
+                        <div class="text-gray-400 leading-tight">STD: <span class="text-white">${stripSecondsFromDate(maxBagForMinMax.std)}</span></div>
+                    </div>
+                    <div>
+                        <div class="${minColorClass} font-bold text-[0.65rem] uppercase mb-0.5">Min (${minHourStdRaw})</div>
+                        <div class="text-gray-400 leading-tight">Flight: <span class="text-white">${minBag.flight}</span></div>
+                        <div class="text-gray-400 leading-tight">Dispatch: <span class="text-white">${minBag.eventTime}</span></div>
+                        <div class="text-gray-400 leading-tight">STD: <span class="text-white">${stripSecondsFromDate(minBag.std)}</span></div>
+                    </div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+            } else if (tooltipBox) {
+                tooltipBox.innerHTML = ``;
+            }
+        }
+
+        // --- MANUAL TRANSFER SIMULATOR CORE ("WAVES" LOGIC) ---
+        
+        // Smart Memory (Add Manual Transport)
+        document.getElementById('btn-add-sim').addEventListener('click', () => {
+            const time = document.getElementById('sim-input-time').value;
+            const type = document.getElementById('sim-in-type').value;
+            const cap = parseInt(document.getElementById('sim-in-cap').value);
+            if (!time || !time.includes(':') || isNaN(cap) || cap < 1) return;
+
+            const newId = Date.now().toString() + Math.floor(Math.random()*1000);
+            const sameTypeInputs = simEntries.filter(e => e.time === time && e.type === type).length;
+            const name = `${type} ${sameTypeInputs + 1} (${cap})`;
+
+            simEntries.push({ id: newId, time, type, cap, name });
+            triggerSimulation();
+            setOptimizationState(false); // Reverts button back to yellow
+        });
+
+        // Smart Memory (Remove Group)
+        window.removeTimeGroup = function(timeStr) {
+            simEntries = simEntries.filter(e => e.time !== timeStr);
+            triggerSimulation();
+            setOptimizationState(false); // Reverts button back to yellow
+        };
+
+        ['sim-f-load', 'sim-f-unload', 'sim-f-eff', 'sim-f-mm', 'sim-f-ss', 'sim-f-ms'].forEach(id => {
+            document.getElementById(id).addEventListener('input', triggerSimulation);
+        });
+
+        function triggerSimulation() {
+            generateTrips();
+            renderSimUI();
+        }
+
+        function generateTrips() {
+            generatedTrips = [];
+            if(simEntries.length === 0) return;
+
+            const valLoad = parseFloat(document.getElementById('sim-f-load').value) || 0;
+            const valUnload = parseFloat(document.getElementById('sim-f-unload').value) || 0;
+            const valEff = parseFloat(document.getElementById('sim-f-eff').value) || 100;
+            const valMM = parseFloat(document.getElementById('sim-f-mm').value) || 0;
+            const valSS = parseFloat(document.getElementById('sim-f-ss').value) || 0;
+            const valMS = parseFloat(document.getElementById('sim-f-ms').value) || 0;
+            
+            const intervalType = document.getElementById('slicer-interval').value;
+
+            // Group user inputs exactly 1-to-1 by Time
+            const entriesByTime = {};
+            simEntries.forEach(e => {
+                if(!entriesByTime[e.time]) entriesByTime[e.time] = [];
+                entriesByTime[e.time].push(e);
+            });
+
+            Object.keys(entriesByTime).sort().forEach(timeStr => {
+                const fleetInputs = entriesByTime[timeStr]; // Exactly matches inputs 1-to-1
+                
+                const tParts = timeStr.split(':');
+                const targetMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
+                let durationMins = 60; 
+                if (intervalType === '15min') durationMins = 15;
+                if (intervalType === 'daily') durationMins = 1440; 
+
+                const matchedBags = currentFilteredBags.filter(b => {
+                    if (!b.timestamp) return false;
+                    const d = new Date(b.timestamp);
+                    const bMins = d.getHours() * 60 + d.getMinutes();
+                    return bMins >= targetMins && bMins < (targetMins + durationMins);
+                });
+
+                // Separate bags securely by Destination Chute
+                const buckets = { MTB: [], SAT: [] };
+                matchedBags.forEach(b => {
+                    const cArea = (b.chute || '').toUpperCase();
+                    if(cArea.startsWith('MC')) buckets.SAT.push(b);
+                    else buckets.MTB.push(b);
+                });
+
+                // Assign Transports Dynamically
+                let mtbBagsCount = buckets.MTB.length;
+                let satBagsCount = buckets.SAT.length;
+
+                // Reset states for each vehicle
+                fleetInputs.forEach(v => {
+                    v.allowedDests = [];
+                    v.bags = [];
+                    v.totalTrips = 0;
+                    v.mins = 0;
+                    v.wave1Bags = 0;
+                });
+
+                if (fleetInputs.length === 1) {
+                    fleetInputs[0].allowedDests = ['MTB', 'SAT'];
+                } else {
+                    fleetInputs.forEach(v => {
+                        if (mtbBagsCount >= satBagsCount && mtbBagsCount > 0) {
+                            v.allowedDests.push('MTB');
+                            mtbBagsCount -= v.cap;
+                        } else if (satBagsCount > 0) {
+                            v.allowedDests.push('SAT');
+                            satBagsCount -= v.cap;
+                        } else {
+                            if (fleetInputs.filter(f=>f.allowedDests.includes('MTB')).length <= fleetInputs.filter(f=>f.allowedDests.includes('SAT')).length) {
+                                v.allowedDests.push('MTB');
+                            } else {
+                                v.allowedDests.push('SAT');
+                            }
+                        }
+                    });
+                }
+
+                // Group bags inside buckets
+                function groupBags(bagList) {
+                    const map = new Map();
+                    bagList.forEach(b => {
+                        const key = b.flight + '::' + b.chute;
+                        if(!map.has(key)) map.set(key, []);
+                        map.get(key).push(b);
+                    });
+                    return Array.from(map.values()).sort((a,b) => b.length - a.length);
+                }
+
+                let mtbGroups = groupBags(buckets.MTB);
+                let satGroups = groupBags(buckets.SAT);
+
+                function getNextChunk(groups, space) {
+                    for (let i = 0; i < groups.length; i++) {
+                        if (groups[i].length > 0) {
+                            let chunk = groups[i].slice(0, space);
+                            groups[i] = groups[i].slice(space);
+                            return chunk;
+                        }
+                    }
+                    return [];
+                }
+
+                // The "WAVES" Engine
+                let tripNum = 1;
+                let anyBagMoved = true;
+
+                while (anyBagMoved) {
+                    anyBagMoved = false;
+                    
+                    fleetInputs.forEach(v => {
+                        let spaceLeft = v.cap;
+                        let tripBags = [];
+                        
+                        v.allowedDests.forEach(dest => {
+                            let groups = dest === 'MTB' ? mtbGroups : satGroups;
+                            while (spaceLeft > 0) {
+                                let chunk = getNextChunk(groups, spaceLeft);
+                                if (chunk.length === 0) break;
+                                tripBags.push(...chunk);
+                                spaceLeft -= chunk.length;
+                                anyBagMoved = true;
+                            }
+                        });
+                        
+                        if (tripBags.length > 0) {
+                            v.totalTrips = tripNum;
+                            v.bags.push(...tripBags);
+                            
+                            if (tripNum === 1) v.wave1Bags += tripBags.length;
+                            
+                            // Workload Time Calculation
+                            let hasMTB_orig = false, hasSAT_orig = false;
+                            let hasMTB_dest = false, hasSAT_dest = false;
+                            tripBags.forEach(b => {
+                                const oArea = b.rummageArea.toUpperCase();
+                                const cArea = (b.chute || '').toUpperCase();
+                                if (oArea.includes('SAT')) hasSAT_orig = true; else hasMTB_orig = true;
+                                if (cArea.startsWith('MC')) hasSAT_dest = true; else hasMTB_dest = true;
+                            });
+                            
+                            let tTrans = valMS; 
+                            if (hasMTB_orig && !hasSAT_orig && hasMTB_dest && !hasSAT_dest) tTrans = valMM;
+                            if (hasSAT_orig && !hasMTB_orig && hasSAT_dest && !hasSAT_dest) tTrans = valSS;
+                            
+                            const tLoad = (tripBags.length * valLoad) / 60;
+                            const tUnload = (tripBags.length * valUnload) / 60;
+                            v.mins += (tLoad + tTrans + tUnload) / (valEff / 100);
+                        }
+                    });
+                    if (anyBagMoved) tripNum++;
+                }
+
+                fleetInputs.forEach(v => {
+                    generatedTrips.push(v);
+                });
+            });
+        }
+
+        function renderSimUI() {
+            const list = document.getElementById('sim-entries-list');
+            list.innerHTML = '';
+            let globalTotalBags = 0;
+            let globalTotalMins = 0;
+            let globalMaxWorkload = 0;
+            let maxWorkloadDetails = null;
+
+            let globalMaxTransports = 0;
+            let maxTransDetails = null;
+
+            const entriesByTime = {};
+            simEntries.forEach(e => {
+                if(!entriesByTime[e.time]) entriesByTime[e.time] = [];
+                entriesByTime[e.time].push(e);
+            });
+
+            const tripsByTime = {};
+            generatedTrips.forEach(t => {
+                if(!tripsByTime[t.time]) tripsByTime[t.time] = [];
+                tripsByTime[t.time].push(t);
+            });
+
+            Object.keys(entriesByTime).sort().forEach(timeStr => {
+                const fleet = tripsByTime[timeStr] || [];
+
+                const intervalType = document.getElementById('slicer-interval').value;
+                const tParts = timeStr.split(':');
+                const targetMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
+                let durationMins = 60; 
+                if (intervalType === '15min') durationMins = 15;
+                if (intervalType === 'daily') durationMins = 1440; 
+                
+                const matchedBags = currentFilteredBags.filter(b => {
+                    if (!b.timestamp) return false;
+                    const d = new Date(b.timestamp);
+                    const bMins = d.getHours() * 60 + d.getMinutes();
+                    return bMins >= targetMins && bMins < (targetMins + durationMins);
+                });
+                const blockTotalAvailableBags = matchedBags.length;
+
+                // WAVE MATHEMATICS FOR UI
+                let loadedBagsWave1 = fleet.reduce((sum, v) => sum + (v.wave1Bags || 0), 0);
+                let balance = blockTotalAvailableBags - loadedBagsWave1;
+                if (balance < 0) balance = 0; 
+                
+                let totalTrans = fleet.length;
+                let maxTrips = fleet.length > 0 ? Math.max(...fleet.map(v => v.totalTrips || 0)) : 0;
+                let totalMinsSum = fleet.reduce((sum, v) => sum + (v.mins || 0), 0);
+                let avgWorkloadMins = totalTrans > 0 ? totalMinsSum / totalTrans : 0;
+
+                globalTotalBags += blockTotalAvailableBags; 
+                globalTotalMins += avgWorkloadMins;
+                
+                // Track details for tooltips
+                let blockBags = [];
+                fleet.forEach(t => { if(t.bags) blockBags.push(...t.bags); });
+                
+                let flights = new Set(blockBags.map(b => b.flight));
+                let dates = new Set(blockBags.map(b => b.dateOnlyISO).filter(d => d));
+                let dateDisplay = "Multiple";
+                let dateArr = Array.from(dates);
+                if (dateArr.length === 1 && dateArr[0]) {
+                    let parts = dateArr[0].split('-');
+                    if(parts.length === 3) dateDisplay = `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+                    else dateDisplay = dateArr[0];
+                }
+                
+                let lorryCount = entriesByTime[timeStr].filter(e => e.type === 'Lorry').length;
+                let trolleyCount = entriesByTime[timeStr].filter(e => e.type === 'Trolley').length;
+
+                // Capture MAX WORKLOAD
+                if (avgWorkloadMins >= globalMaxWorkload && fleet.length > 0) {
+                    globalMaxWorkload = avgWorkloadMins;
+                    maxWorkloadDetails = {
+                        date: dateDisplay, time: timeStr, totalFlight: flights.size,
+                        totalBags: blockTotalAvailableBags, totalTrans: totalTrans,
+                        lorryCount: lorryCount, trolleyCount: trolleyCount, totalTrip: maxTrips
+                    };
+                }
+
+                // Capture MAX TRANSPORTS
+                let currentTotalTrans = entriesByTime[timeStr].length;
+                if (currentTotalTrans >= globalMaxTransports && currentTotalTrans > 0) {
+                    globalMaxTransports = currentTotalTrans;
+                    maxTransDetails = {
+                        date: dateDisplay, time: timeStr,
+                        lorryCount: lorryCount, trolleyCount: trolleyCount
+                    };
+                }
+
+                let chipsHtml = fleet.map(t => {
+                    return `<button onclick="openTripModal('${t.id}')" class="bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded text-[0.65rem] font-bold hover:bg-blue-200 transition shadow-sm truncate cursor-pointer" title="Click to view assigned bags">${t.name}</button>`;
+                }).join('');
+
+                const div = document.createElement('div');
+                div.className = "bg-white border border-gray-200 rounded p-1.5 shadow-sm relative transition-all flex flex-col gap-1.5";
+                div.innerHTML = `
+                    <div class="flex items-center justify-between text-xs px-0.5 pt-0.5">
+                        <span class="font-bold text-gray-800 whitespace-nowrap">Time: <span class="text-blue-600">${timeStr}</span></span>
+                        <div class="flex items-center justify-end gap-1.5 flex-1 mx-3 min-w-0">
+                            ${chipsHtml}
+                        </div>
+                        <button onclick="removeTimeGroup('${timeStr}')" class="text-red-400 hover:text-red-700 font-bold transition text-lg leading-none" title="Remove all inputs for ${timeStr}">&times;</button>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1 text-gray-600 bg-gray-50 p-1 rounded border border-gray-100">
+                        <div class="flex flex-col min-w-0 text-center">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Loaded Bags">Loaded Bags</span>
+                            <b class="text-blue-600 text-xs truncate">${loadedBagsWave1}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Balance">Balance</span>
+                            <b class="text-red-500 text-xs truncate">${balance}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Total Trans.">Total Trans.</span>
+                            <b class="text-gray-800 text-xs truncate">${totalTrans}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Total Trips">Total Trips</span>
+                            <b class="text-gray-800 text-xs truncate">${maxTrips}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Workload (Avg)">Workload</span>
+                            <b class="text-gray-800 text-xs truncate">${Math.round(avgWorkloadMins)}m</b>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+            
+            // Outputs bottom
+            document.getElementById('sim-out-bags').textContent = globalTotalBags.toLocaleString();
+            
+            let displayTime = Math.round(globalTotalMins) + 'm';
+            if (globalTotalMins > 60) {
+                const h = Math.floor(globalTotalMins / 60);
+                const m = Math.round(globalTotalMins % 60);
+                displayTime = `${h}h ${m}m`;
+            }
+            document.getElementById('sim-out-duration').textContent = displayTime;
+            
+            // MAX WORKLOAD DURATION
+            const maxWlEl = document.getElementById('out-max-workload');
+            const maxWlDateTimeEl = document.getElementById('out-max-workload-datetime');
+            const maxWlTooltip = document.getElementById('out-max-workload-tooltip');
+
+            if (simEntries.length > 0 && maxWorkloadDetails) {
+                maxWlEl.innerHTML = `${Math.round(globalMaxWorkload)} <span class="text-sm font-semibold text-teal-500 ml-0.5">minutes</span>`;
+                maxWlDateTimeEl.textContent = `${maxWorkloadDetails.date} ${maxWorkloadDetails.time}`;
+                
+                maxWlTooltip.innerHTML = `
+                    <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">WORKLOAD DETAILS</div>
+                    <div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.date}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Time:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.time}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Flight:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalFlight}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalBags}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Transport:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalTrans} <span class="text-gray-400 font-normal opacity-90">(Lorry: ${maxWorkloadDetails.lorryCount} | Trolley: ${maxWorkloadDetails.trolleyCount})</span></span></div>
+                    <div><span class="text-gray-400">Total Trip:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalTrip}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+                maxWlTooltip.classList.remove('hidden');
+            } else {
+                maxWlEl.textContent = '-';
+                maxWlDateTimeEl.textContent = '-';
+                maxWlTooltip.innerHTML = '';
+                maxWlTooltip.classList.add('hidden');
+            }
+
+            // MAX TOTAL TRANSPORT
+            const maxTransEl = document.getElementById('out-max-transports');
+            const maxTransDateTimeEl = document.getElementById('out-max-transports-datetime');
+            const maxTransTooltip = document.getElementById('out-max-transports-tooltip');
+
+            if (simEntries.length > 0 && maxTransDetails && globalMaxTransports > 0) {
+                maxTransEl.textContent = globalMaxTransports;
+                maxTransDateTimeEl.textContent = `${maxTransDetails.date} ${maxTransDetails.time}`;
+                
+                maxTransTooltip.innerHTML = `
+                    <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">FLEET DETAILS</div>
+                    <div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1">${maxTransDetails.date}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Time:</span> <span class="font-bold text-white ml-1">${maxTransDetails.time}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Lorry Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.lorryCount}</span></div>
+                    <div><span class="text-gray-400">Trolley Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.trolleyCount}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+                maxTransTooltip.classList.remove('hidden');
+            } else {
+                maxTransEl.textContent = '-';
+                maxTransDateTimeEl.textContent = '-';
+                maxTransTooltip.innerHTML = '';
+                maxTransTooltip.classList.add('hidden');
+            }
+        }
+
+        function generateCustomTicks(minTime, maxTime, interval) {
+            const tickvals = [];
+            const ticktext = [];
+            
+            const diff = maxTime - minTime;
+            let tickStepMs;
+            
+            let isThirteenDaysOrMore = diff >= 86400000 * 12.5;
+            let isEightDaysOrMore = diff >= 86400000 * 7.5;
+            
+            if (interval === 'daily') {
+                tickStepMs = 86400000; 
+            } else {
+                if (isThirteenDaysOrMore) tickStepMs = 86400000; 
+                else if (isEightDaysOrMore) tickStepMs = 43200000; 
+                else if (diff >= 86400000 * 2.5) tickStepMs = 43200000; 
+                else tickStepMs = 10800000; 
+            }
+
+            let currentDt = new Date(minTime);
+            if (tickStepMs >= 86400000) {
+                currentDt.setHours(0,0,0,0);
+            } else if (tickStepMs === 43200000) {
+                const h = currentDt.getHours();
+                currentDt.setHours(h - (h % 12), 0, 0, 0);
+            } else {
+                const h = currentDt.getHours();
+                currentDt.setHours(h - (h % 3), 0, 0, 0);
+            }
+            
+            let current = currentDt.getTime();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+            let safety = 0;
+            while (current <= maxTime + tickStepMs && safety < 1000) {
+                tickvals.push(current);
+                const d = new Date(current);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mm = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mmm = monthNames[d.getMonth()];
+                const yy = String(d.getFullYear()).slice(-2);
+                
+                let baseDateStr = (isEightDaysOrMore && interval !== 'daily') ? `${dd}-${mmm}` : `${dd} ${mmm} ${yy}`;
+                
+                let finalDateStr;
+                if (isThirteenDaysOrMore && interval !== 'daily') {
+                    finalDateStr = baseDateStr; 
+                } else {
+                    finalDateStr = `<span style="font-weight: 900;"><b>${baseDateStr}</b></span>`;
+                }
+
+                if (tickStepMs >= 86400000) {
+                    ticktext.push(finalDateStr);
+                } else {
+                    if (hh === '00' && mm === '00') {
+                        ticktext.push(`00:00<br>${finalDateStr}`);
+                    } else {
+                        ticktext.push(`${hh}:${mm}`);
+                    }
+                }
+                current += tickStepMs;
+                safety++;
+            }
+            return { tickvals, ticktext };
+        }
+
+        function renderTimeline(bags) {
+            const chartDiv = document.getElementById('chart-timeline');
+            const countEl = document.getElementById('out-overlap-count');
+            const modalBody = document.getElementById('overlap-modal-body');
+            const modalTotal = document.getElementById('overlap-modal-total');
+
+            if (bags.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                document.getElementById('out-max-bags').textContent = "0";
+                document.getElementById('out-max-time').textContent = "-";
+                countEl.textContent = "0";
+                modalBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-gray-400 italic">No flight data available.</td></tr>';
+                modalTotal.textContent = 'Total Bags: 0';
+                return;
+            }
+
+            const interval = document.getElementById('slicer-interval').value;
+            const tracesMap = new Map(); 
+            const globalTimeMap = new Map(); 
+            const globalFlightBagMap = new Map(); 
+
+            let stepMs = 1000; 
+            if (interval === 'daily') stepMs = 86400000;
+            else if (interval === 'hourly') stepMs = 3600000;
+            else if (interval === '15min') stepMs = 900000;
+
+            bags.forEach(bag => {
+                if (!bag.timestamp) return;
+
+                let binnedTime;
+                if (interval === 'daily') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+                } else if (interval === 'hourly') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), 0, 0).getTime();
+                } else if (interval === '15min') {
+                    const dt = new Date(bag.timestamp);
+                    const min = dt.getMinutes();
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), min - (min % 15), 0).getTime();
+                } else {
+                    binnedTime = bag.timestamp;
+                }
+
+                globalTimeMap.set(binnedTime, (globalTimeMap.get(binnedTime) || 0) + 1);
+
+                if (!globalFlightBagMap.has(binnedTime)) {
+                    globalFlightBagMap.set(binnedTime, new Map());
+                }
+                if (bag.flight && bag.flight !== '-') {
+                    const fbMap = globalFlightBagMap.get(binnedTime);
+                    fbMap.set(bag.flight, (fbMap.get(bag.flight) || 0) + 1);
+                }
+
+                const traceKey = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
+
+                if (!tracesMap.has(traceKey)) tracesMap.set(traceKey, new Map());
+                
+                const timeMap = tracesMap.get(traceKey);
+                timeMap.set(binnedTime, (timeMap.get(binnedTime) || 0) + 1);
+            });
+
+            let maxBags = 0;
+            let peakTime = null;
+            globalTimeMap.forEach((count, time) => {
+                if (count > maxBags) {
+                    maxBags = count;
+                    peakTime = time;
+                }
+            });
+
+            document.getElementById('out-max-bags').textContent = maxBags.toLocaleString();
+            if (peakTime) {
+                const d = new Date(peakTime);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yy = String(d.getFullYear()).slice(-2);
+                document.getElementById('out-max-time').textContent = `${dd}/${mm}/${yy} ${hh}:${min}`;
+            } else {
+                document.getElementById('out-max-bags').textContent = "0";
+                document.getElementById('out-max-time').textContent = "-";
+            }
+
+            if (peakTime && globalFlightBagMap.has(peakTime)) {
+                const fbMap = globalFlightBagMap.get(peakTime);
+                countEl.textContent = fbMap.size.toLocaleString();
+                
+                let tbodyHtml = '';
+                let modalTotalBags = 0;
+                
+                const sortedFlights = Array.from(fbMap.entries()).sort((a, b) => {
+                    if (b[1] !== a[1]) return b[1] - a[1];
+                    return a[0].localeCompare(b[0]);
+                });
+
+                sortedFlights.forEach(([fl, qty]) => {
+                    tbodyHtml += `<tr class="border-b border-gray-100 hover:bg-gray-50"><td class="py-2 text-sm font-bold text-gray-800">${fl}</td><td class="py-2 text-sm text-right font-mono">${qty}</td></tr>`;
+                    modalTotalBags += qty;
+                });
+                
+                modalBody.innerHTML = tbodyHtml;
+                modalTotal.textContent = `Total Bags: ${modalTotalBags}`;
+            } else {
+                countEl.textContent = "0";
+                modalBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-gray-400 italic">No flight data available.</td></tr>';
+                modalTotal.textContent = 'Total Bags: 0';
+            }
+
+            let minTime = Infinity;
+            let maxTime = -Infinity;
+
+            tracesMap.forEach(timeMap => {
+                const times = Array.from(timeMap.keys());
+                if(times.length > 0) {
+                    const traceMin = Math.min(...times);
+                    const traceMax = Math.max(...times);
+                    if (!timeMap.has(traceMin - stepMs)) timeMap.set(traceMin - stepMs, 0);
+                    if (!timeMap.has(traceMax + stepMs)) timeMap.set(traceMax + stepMs, 0);
+                    
+                    minTime = Math.min(minTime, traceMin - stepMs);
+                    maxTime = Math.max(maxTime, traceMax + stepMs);
+                }
+            });
+
+            let customTicks = { tickvals: [], ticktext: [] };
+            if (minTime !== Infinity && maxTime !== -Infinity) {
+                customTicks = generateCustomTicks(minTime, maxTime, interval);
+            }
+
+            const plotlyData = [];
+
+            const definedOrder = ['MA', 'MB', 'MC1', 'MC2', 'MS1', 'MS2'];
+            const traceKeys = Array.from(tracesMap.keys()).sort((a, b) => {
+                let idxA = definedOrder.indexOf(a);
+                let idxB = definedOrder.indexOf(b);
+                if (idxA === -1) idxA = 999;
+                if (idxB === -1) idxB = 999;
+                if (idxA !== idxB) return idxA - idxB;
+                return a.localeCompare(b);
+            });
+
+            traceKeys.forEach(traceKey => {
+                const timeMap = tracesMap.get(traceKey);
+                const xVals = [];
+                const yVals = [];
+                
+                const sortedTimes = Array.from(timeMap.keys()).sort((a, b) => a - b);
+                sortedTimes.forEach(t => {
+                    xVals.push(new Date(t));
+                    yVals.push(timeMap.get(t));
+                });
+                
+                const traceColor = areaColorMap.get(traceKey) || '#94a3b8';
+
+                plotlyData.push({
+                    x: xVals,
+                    y: yVals,
+                    name: traceKey,
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tozeroy', 
+                    opacity: 0.5,    
+                    line: { shape: 'spline', smoothing: 0.4, color: traceColor },
+                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                });
+            });
+
+            const layout = {
+                margin: { t: 40, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                xaxis: { 
+                    type: 'date',
+                    tickvals: customTicks.tickvals,
+                    ticktext: customTicks.ticktext,
+                    tickmode: 'array',
+                    range: [minTime, maxTime], 
+                    hoverformat: '%d/%m/%y %H:%M' 
+                },
+                yaxis: { 
+                    title: { text: 'Bags Count', standoff: 30 }
+                },
+                showlegend: true,
+                hovermode: 'x unified', 
+                hoverlabel: {
+                    bgcolor: '#1f2937',     
+                    bordercolor: '#374151', 
+                    namelength: -1,         
+                    align: 'left',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                },
+                legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 }
+            };
+
+            Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
+        }
+
+        function renderRummageLoad(bags) {
+            const chartDiv = document.getElementById('chart-bar');
+            if (bags.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                return;
+            }
+
+            const areaCounts = new Map();
+            bags.forEach(bag => {
+                const area = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
+                areaCounts.set(area, (areaCounts.get(area) || 0) + 1);
+            });
+
+            let sortedAreas = Array.from(areaCounts.keys());
+            const sortMethod = document.getElementById('rummage-sort').value;
+
+            sortedAreas.sort((a, b) => {
+                if (sortMethod === 'bags-desc') return areaCounts.get(b) - areaCounts.get(a);
+                if (sortMethod === 'bags-asc') return areaCounts.get(a) - areaCounts.get(b);
+                if (sortMethod === 'alpha') return a.localeCompare(b);
+                if (sortMethod === 'area') {
+                    const aIsMTB = a.toUpperCase().includes('MTB') ? 0 : 1;
+                    const bIsMTB = b.toUpperCase().includes('MTB') ? 0 : 1;
+                    if (aIsMTB !== bIsMTB) return aIsMTB - bIsMTB;
+                    return a.localeCompare(b);
+                }
+                return 0;
+            });
+
+            const xVals = sortedAreas;
+            const yVals = sortedAreas.map(a => areaCounts.get(a));
+            const colors = sortedAreas.map(a => areaColorMap.get(a) || '#94a3b8');
+
+            const plotlyData = [{
+                x: xVals,
+                y: yVals,
+                type: 'bar',
+                marker: { color: colors, opacity: 0.5 },
+                text: yVals,
+                textposition: 'outside',
+                textfont: { color: '#4b5563', weight: 'bold' },
+                cliponaxis: false,
+                hovertemplate: `<span style="color: #d1d5db;">%{x}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+            }];
+
+            const layout = {
+                margin: { t: 30, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                xaxis: { title: '', tickangle: 0 },
+                yaxis: { title: { text: 'Total Bags', standoff: 30 } },
+                showlegend: false,
+                hoverlabel: {
+                    bgcolor: '#1f2937', bordercolor: '#374151',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                }
+            };
+
+            Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
+        }
+
+        function renderTable(bags) {
+            const tbody = document.getElementById('reclaim-tbody');
+            tbody.innerHTML = '';
+
+            if (bags.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="py-8 text-gray-400 italic text-center">No matching bag records found.</td></tr>`;
+                return;
+            }
+
+            const MAX_ROWS = 500;
+            const displayBags = bags.slice(0, MAX_ROWS);
+            const fragment = document.createDocumentFragment();
+
+            displayBags.forEach(bag => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
+                
+                const hourValue = bag.hourBeforeStdNum;
+                let hourTextColor = 'text-gray-800 font-bold';
+                
+                if (hourValue !== null) {
+                    if (hourValue < 0) {
+                        hourTextColor = 'text-red-600 font-bold';
+                    } else if (hourValue <= 1) {
+                        hourTextColor = 'text-yellow-600 font-bold';
+                    } else {
+                        hourTextColor = 'text-green-600 font-bold';
+                    }
+                }
+                
+                const formattedStd = stripSecondsFromDate(bag.std);
+                const formattedHourBeforeStd = formatDecimalToHHmm(bag.hourBeforeStdNum);
+
+                tr.innerHTML = `
+                    <td class="font-mono font-semibold text-center" title="${bag.eventTime}">${bag.eventTime}</td>
+                    <td class="font-bold w-24 flight-cell cursor-pointer text-blue-600 hover:text-blue-800 text-center" 
+                        data-flight="${bag.flight}" 
+                        data-std="${bag.std}" 
+                        data-dispatch="${bag.eventTime}" 
+                        data-chute="${bag.chute}" 
+                        data-gh="${bag.groundHandler}">
+                        ${bag.flight}
+                    </td>
+                    <td class="font-mono text-center" title="${formattedStd}">${formattedStd}</td>
+                    <td class="font-mono font-bold text-gray-900 text-center" title="${bag.bagTagId}">${bag.bagTagId}</td>
+                    <td class="text-center" title="${bag.rummage}">${bag.rummage}</td>
+                    <td class="font-semibold text-blue-600 text-center" title="${bag.rummageArea}">${bag.rummageArea}</td>
+                    <td class="text-center" title="${bag.reason}">${bag.reason}</td>
+                    <td class="text-center" title="${bag.chute}">${bag.chute}</td>
+                    <td class="text-center" title="${bag.groundHandler}">${bag.groundHandler}</td>
+                    <td class="font-mono ${hourTextColor} text-center" title="${bag.hourBeforeStd}">${formattedHourBeforeStd}</td>
+                `;
+                fragment.appendChild(tr);
+            });
+            
+            if (bags.length > MAX_ROWS) {
+                 const tr = document.createElement('tr');
+                 tr.innerHTML = `<td colspan="10" class="py-4 text-gray-500 italic text-center bg-gray-50">Showing first ${MAX_ROWS} rows. (Total: ${bags.length})</td>`;
+                 fragment.appendChild(tr);
+            }
+
+            tbody.appendChild(fragment);
+        }
+
+        function resetFilters() {
+            setDefaultDateFilters();
+            
+            hiddenFlightInput.value = 'ALL';
+            document.getElementById('custom-flight-text').textContent = 'All Flights';
+            flightSearchInput.value = '';
+            document.querySelectorAll('.flight-item').forEach(item => item.style.display = 'block');
+
+            filterState = { reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
+            document.getElementById('text-reason').textContent = 'All Reasons';
+            document.getElementById('text-handler').textContent = 'All GH';
+            document.getElementById('text-reclaim').textContent = 'All Areas';
+            populateFilterDropdowns(); 
+
+            document.getElementById('slicer-search-bag').value = '';
+            document.getElementById('slicer-interval').value = 'hourly';
+            
+            triggerFilters();
+        }
+
+        // --- AUTOMATED CSV FETCH LOGIC ---
+        function loadCSVFromGitHub() {
+            // Trigger your existing loading overlay
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('hidden');
+
+            Papa.parse("data.csv", {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    try {
+                        // Feed the parsed CSV data directly into your existing engine
+                        processBagEntities(results.data);
+                        setDefaultDateFilters();
+                        populateFilterDropdowns();
+                        
+                        document.getElementById('btn-save-as').classList.remove('hidden');
+                        document.getElementById('kpi-section').classList.remove('hidden');
+                        document.getElementById('charts-section').classList.remove('hidden');
+                        
+                        applyFiltersAndRender();
+                    } catch (err) {
+                        console.error("Data Processing Error:", err);
+                    } finally {
+                        overlay.classList.add('hidden');
+                    }
+                },
+                error: function(err) {
+                    console.error("Error loading data.csv:", err);
+                    overlay.classList.add('hidden');
+                    alert("Could not load data.csv. Please upload it to your GitHub repository.");
+                }
+            });
+        }
+
+        // Run the fetch function as soon as the page loads
+        document.addEventListener('DOMContentLoaded', loadCSVFromGitHub);
+    </script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js');
+    });
+  }
+</script>
+</body>
+</html>
