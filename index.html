@@ -1419,45 +1419,56 @@
                 };
             }
 
-            // Generate conditional data labels for the line charts
-            const lorryText = [];
-            const trolleyText = [];
+            // Generate annotations for data labels with background colors
+            const simAnnotations = [];
             for (let i = 0; i < times.length; i++) {
                 let l = lorryCounts[i];
                 let t = trolleyCounts[i];
                 
-                // Hide label if 0
-                lorryText.push(l > 0 ? String(l) : '');
+                if (l > 0) {
+                    simAnnotations.push({
+                        x: times[i], y: l,
+                        xref: 'x', yref: 'y2',
+                        text: `<b>${l}</b>`,
+                        showarrow: false,
+                        font: { size: 10, color: 'rgb(59, 130, 246)' },
+                        bgcolor: 'rgba(255, 255, 255, 0.85)',
+                        bordercolor: 'rgb(59, 130, 246)',
+                        borderwidth: 1,
+                        borderpad: 2
+                    });
+                }
                 
-                // Hide label if 0, OR if it perfectly overlaps with Lorry at the same point
-                trolleyText.push((t > 0 && t !== l) ? String(t) : ''); 
+                if (t > 0 && t !== l) {
+                    simAnnotations.push({
+                        x: times[i], y: t,
+                        xref: 'x', yref: 'y2',
+                        text: `<b>${t}</b>`,
+                        showarrow: false,
+                        font: { size: 10, color: 'rgb(16, 185, 129)' },
+                        bgcolor: 'rgba(255, 255, 255, 0.85)',
+                        bordercolor: 'rgb(16, 185, 129)',
+                        borderwidth: 1,
+                        borderpad: 2
+                    });
+                }
             }
 
             // Additional traces for the Transports Count (Secondary Top Chart) -> Now as Line Charts
             const trace3 = {
                 x: times, y: lorryCounts, name: 'Lorry (Transport)',
-                type: 'scatter', mode: 'lines+markers+text', yaxis: 'y2',
-                text: lorryText,
-                textposition: 'top center',
-                textfont: { size: 10, color: 'rgb(59, 130, 246)', weight: 'bold' },
-                marker: { color: 'rgba(59, 130, 246, 1)', size: 5 },
+                type: 'scatter', mode: 'lines', yaxis: 'y2',
                 line: { color: 'rgba(59, 130, 246, 0.8)', width: 2 },
                 hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`,
-                showlegend: false,
-                cliponaxis: false
+                showlegend: false
             };
             
             const trace4 = {
                 x: times, y: trolleyCounts, name: 'Trolley (Transport)',
-                type: 'scatter', mode: 'lines+markers+text', yaxis: 'y2',
-                text: trolleyText,
-                textposition: 'bottom center', // Offset slightly to separate from Lorry if values are close
-                textfont: { size: 10, color: 'rgb(16, 185, 129)', weight: 'bold' },
-                marker: { color: 'rgba(16, 185, 129, 1)', size: 5 },
+                type: 'scatter', mode: 'lines', yaxis: 'y2',
                 line: { color: 'rgba(16, 185, 129, 0.8)', width: 2 },
                 hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`,
-                showlegend: false,
-                cliponaxis: false
+                showlegend: false
             };
 
             const layout = { 
@@ -1465,6 +1476,7 @@
                 margin: { t: 20, l: 60, r: 20, b: 40 }, 
                 paper_bgcolor: '#f9fafb',
                 plot_bgcolor: '#f9fafb', 
+                annotations: simAnnotations, // Inject annotations here
                 xaxis: { 
                     title: '', 
                     tickvals: hours24_even, 
