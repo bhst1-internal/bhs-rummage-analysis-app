@@ -27,7 +27,7 @@
         
         /* Ultra-Optimized Table CSS */
         table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-        th, td { border: 1px solid #e5e7eb; padding: 4px 6px; text-align: center; vertical-align: middle; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        th, td { border: 1px solid #e5e7eb; text-align: center; vertical-align: middle; line-height: 1.1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         th { background-color: #f9fafb; font-weight: 600; font-size: 0.65rem; text-transform: uppercase; color: #4b5563; position: sticky; top: 0; z-index: 10; }
         td { font-size: 0.7rem; color: #1f2937; }
         
@@ -231,14 +231,14 @@
                     <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">1. Operational Timeline</h2>
                     
                     <div class="flex items-center space-x-3">
-                        <button id="saveJpegBtn" onclick="saveTimelineAsJPEG()" title="Save Section as JPEG" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;border:1px solid #e5e7eb;font-size:.65rem;font-weight:700;color:#6b7280;cursor:pointer;background:#ffffff">
+                        <button id="saveJpegBtn" onclick="saveTimelineAsJPEG()" title="Save Section as JPEG" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;border:1px solid #d1d5db;font-size:.65rem;font-weight:700;color:#4b5563;cursor:pointer;background:#ffffff">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
                             Save JPEG
                         </button>
                         
-                        <button id="dataTableBtn" onclick="toggleDataTable()" title="Toggle Expanded View" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;border:1px solid #6366f1;font-size:.65rem;font-weight:700;color:#6b7280;cursor:pointer;background:#e0e7ff;transition:all 0.2s;">
+                        <button id="dataTableBtn" onclick="toggleDataTable()" title="Toggle Expanded View" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;border:1px solid #d1d5db;font-size:.65rem;font-weight:700;color:#4b5563;cursor:pointer;background:#ffffff;transition:all 0.2s;">
                             Data Table
                         </button>
 
@@ -511,7 +511,7 @@
 
     <!-- Timeline Expanded Modal Overlay -->
     <div id="timeline-expanded-modal" class="fixed inset-0 bg-gray-900 bg-opacity-80 z-[800] hidden flex items-center justify-center backdrop-blur-sm transition-opacity duration-300">
-        <div class="w-[98vw] h-[96vh] overflow-hidden flex flex-col relative rounded-xl shadow-2xl bg-gray-100 border border-gray-700">
+        <div class="w-[90vw] h-[85vh] overflow-hidden flex flex-col relative rounded-xl shadow-2xl bg-gray-100 border border-gray-700">
             <!-- Close button for modal -->
             <button onclick="toggleDataTable()" class="absolute top-4 right-4 text-gray-500 hover:text-red-600 focus:outline-none bg-white border border-gray-300 p-2 rounded-full z-[1000] shadow-md transition-transform hover:scale-110" title="Close Expanded View">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -729,7 +729,7 @@
             "SQ115", "SQ121", "SQ125", "SQ127", "SV829", "SV835", "SV841", "UL315"
         ];
 
-        // --- NEW: TIMELINE DATA TABLE & CONTROLS LOGIC ---
+        // --- TIMELINE DATA TABLE & CONTROLS LOGIC ---
         let isTimelineTableExpanded = false;
 
         function toggleDataTable() {
@@ -765,7 +765,7 @@
                 tableContainer.style.display = 'block'; // Show table
                 overlay.classList.remove('hidden');     // Show Modal
                 
-                // Update Button
+                // Update Button to Red Close State
                 btn.innerHTML = `
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
                     Minimize View`;
@@ -793,11 +793,11 @@
                 overlay.classList.add('hidden');
                 tableContainer.style.display = 'none'; // Hide table
                 
-                // Revert Button
+                // Revert Button to Neutral Gray State
                 btn.innerHTML = `Data Table`;
-                btn.style.background = '#e0e7ff';
-                btn.style.borderColor = '#6366f1';
-                btn.style.color = '#6b7280';
+                btn.style.background = '#ffffff';
+                btn.style.borderColor = '#d1d5db';
+                btn.style.color = '#4b5563';
 
                 // Resize chart back to normal dashboard limits
                 setTimeout(() => { Plotly.Plots.resize('chart-timeline'); }, 150);
@@ -810,29 +810,41 @@
             const btnGroup = section.querySelector('.flex.items-center.space-x-3');
             const tableScrollDiv = section.querySelector('.overflow-x-auto.sim-scroll');
             
+            const modalBody = document.getElementById('timeline-modal-body');
+            const modalWrapper = document.getElementById('timeline-expanded-modal').firstElementChild;
+
             // Temporarily hide buttons from screenshot
             const btnOrigDisplay = btnGroup.style.display;
             btnGroup.style.display = 'none';
 
-            // Temporarily remove overflow to force table to stretch to full width (so no scrollbars clip it)
-            const origOverflow = tableScrollDiv ? tableScrollDiv.style.overflowX : '';
-            if (tableScrollDiv && isTimelineTableExpanded) {
-                tableScrollDiv.style.overflowX = 'visible';
-                section.style.width = 'max-content';
-                section.style.minWidth = '100%';
+            // Save original styles before overriding for full capture
+            const origSectionWidth = section.style.width;
+            const origTableOverflow = tableScrollDiv ? tableScrollDiv.style.overflowX : '';
+            const origModalBodyOverflow = modalBody.style.overflow;
+            const origModalWrapperOverflow = modalWrapper.style.overflow;
+
+            // Expand everything so html2canvas sees it without clipping
+            if (isTimelineTableExpanded) {
+                if (tableScrollDiv) tableScrollDiv.style.overflowX = 'visible';
+                modalBody.style.overflow = 'visible';
+                modalWrapper.style.overflow = 'visible';
+                
+                const fullWidth = tableScrollDiv ? Math.max(section.offsetWidth, tableScrollDiv.scrollWidth) : section.offsetWidth;
+                section.style.width = fullWidth + 'px';
             }
 
             html2canvas(section, {
-                scale: 2, // High resolution
+                scale: 2, 
                 useCORS: true,
                 backgroundColor: '#ffffff'
             }).then(canvas => {
                 // Restore UI immediately
                 btnGroup.style.display = btnOrigDisplay;
-                if (tableScrollDiv && isTimelineTableExpanded) {
-                    tableScrollDiv.style.overflowX = origOverflow;
-                    section.style.width = '';
-                    section.style.minWidth = '';
+                if (isTimelineTableExpanded) {
+                    if (tableScrollDiv) tableScrollDiv.style.overflowX = origTableOverflow;
+                    modalBody.style.overflow = origModalBodyOverflow;
+                    modalWrapper.style.overflow = origModalWrapperOverflow;
+                    section.style.width = origSectionWidth;
                 }
 
                 // Download image
@@ -845,10 +857,11 @@
                 
                 // Fallback restore
                 btnGroup.style.display = btnOrigDisplay;
-                if (tableScrollDiv && isTimelineTableExpanded) {
-                    tableScrollDiv.style.overflowX = origOverflow;
-                    section.style.width = '';
-                    section.style.minWidth = '';
+                if (isTimelineTableExpanded) {
+                    if (tableScrollDiv) tableScrollDiv.style.overflowX = origTableOverflow;
+                    modalBody.style.overflow = origModalBodyOverflow;
+                    modalWrapper.style.overflow = origModalWrapperOverflow;
+                    section.style.width = origSectionWidth;
                 }
                 alert('Failed to generate image. Please check console for details.');
             });
@@ -867,7 +880,7 @@
             const interval = document.getElementById('slicer-interval').value;
             const tracesMap = new Map();
             const globalTimeMap = new Map();
-            const uniqueDates = new Set(); // Track unique dates to determine header format
+            const uniqueDates = new Set(); 
 
             bags.forEach(bag => {
                 if (!bag.timestamp) return;
@@ -910,9 +923,9 @@
             
             const sortedTimes = Array.from(globalTimeMap.keys()).sort((a, b) => a - b);
 
-            // 1. Build Transposed Table Header (First Column is Rummage Area, the rest are Times)
+            // 1. Build Transposed Table Header
             let theadHTML = '<tr>';
-            theadHTML += '<th class="sticky left-0 top-0 z-30 bg-gray-50 text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider px-6 py-4 border-b border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] text-left whitespace-nowrap min-w-[120px]">Rummage Area</th>';
+            theadHTML += '<th class="sticky left-0 top-0 z-30 bg-gray-50 text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider px-4 py-3 border-b border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] text-left whitespace-nowrap min-w-[110px] w-[110px]">Rummage Area</th>';
             
             sortedTimes.forEach(t => {
                 const dt = new Date(t);
@@ -929,46 +942,46 @@
                     }
                 }
                 
-                theadHTML += `<th class="sticky top-0 z-20 bg-gray-50 text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider px-4 py-4 border-b border-gray-200 shadow-sm text-center whitespace-nowrap">${timeStr}</th>`;
+                theadHTML += `<th class="sticky top-0 z-20 bg-gray-50 text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider px-2 py-3 border-b border-gray-200 shadow-sm text-center whitespace-nowrap min-w-[60px] w-[60px]">${timeStr}</th>`;
             });
             
-            theadHTML += '<th class="sticky right-0 top-0 z-30 bg-blue-50 text-[0.65rem] font-extrabold text-blue-700 uppercase tracking-wider px-4 py-4 border-b border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] text-center">Total</th>';
+            theadHTML += '<th class="sticky right-0 top-0 z-30 bg-blue-50 text-[0.65rem] font-extrabold text-blue-700 uppercase tracking-wider px-3 py-3 border-b border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] text-center min-w-[70px] w-[70px]">Total</th>';
             theadHTML += '</tr>';
             thead.innerHTML = theadHTML;
 
-            // 2. Build Transposed Table Body (Each row is a Rummage Area)
+            // 2. Build Transposed Table Body
             let tbodyHTML = '';
             
             sortedAreas.forEach(area => {
                 tbodyHTML += `<tr class="hover:bg-gray-50 transition-colors">`;
                 
-                // First sticky column
-                tbodyHTML += `<td class="sticky left-0 z-10 bg-white py-2.5 px-6 text-[0.7rem] font-bold text-gray-700 text-left border-b border-r border-gray-100 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">${area}</td>`;
+                // First sticky column (Area)
+                tbodyHTML += `<td class="sticky left-0 z-10 bg-white py-2 px-4 text-[0.7rem] font-bold text-gray-700 text-left border-b border-r border-gray-100 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[110px] w-[110px]">${area}</td>`;
                 
                 let rowTotal = 0;
                 sortedTimes.forEach(t => {
                     const count = tracesMap.get(area).get(t) || 0;
                     rowTotal += count;
-                    tbodyHTML += `<td class="py-2.5 px-4 text-[0.7rem] font-semibold text-gray-600 text-center border-b border-gray-100">${count > 0 ? count : '-'}</td>`;
+                    tbodyHTML += `<td class="py-2 px-2 text-[0.7rem] font-semibold text-gray-600 text-center border-b border-gray-100 min-w-[60px] w-[60px]">${count > 0 ? count : '-'}</td>`;
                 });
                 
                 // Last sticky column (Row Total)
-                tbodyHTML += `<td class="sticky right-0 z-10 bg-blue-50/50 py-2.5 px-4 text-[0.75rem] font-extrabold text-blue-600 text-center border-b border-l border-gray-100 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">${rowTotal}</td>`;
+                tbodyHTML += `<td class="sticky right-0 z-10 bg-blue-50/50 py-2 px-3 text-[0.75rem] font-extrabold text-blue-600 text-center border-b border-l border-gray-100 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[70px] w-[70px]">${rowTotal}</td>`;
                 tbodyHTML += `</tr>`;
             });
             
             // 3. Final Total Row
             tbodyHTML += `<tr class="bg-gray-50">`;
-            tbodyHTML += `<td class="sticky left-0 z-10 bg-gray-100 py-3 px-6 text-[0.7rem] font-extrabold text-gray-800 text-left border-t border-r border-gray-200 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">TOTAL BAGS</td>`;
+            tbodyHTML += `<td class="sticky left-0 z-10 bg-gray-100 py-3 px-4 text-[0.7rem] font-extrabold text-gray-800 text-left border-t border-r border-gray-200 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[110px] w-[110px]">TOTAL BAGS</td>`;
             
             let grandTotal = 0;
             sortedTimes.forEach(t => {
                 const count = globalTimeMap.get(t) || 0;
                 grandTotal += count;
-                tbodyHTML += `<td class="py-3 px-4 text-[0.75rem] font-extrabold text-gray-800 text-center border-t border-gray-200 bg-gray-50">${count > 0 ? count : '-'}</td>`;
+                tbodyHTML += `<td class="py-3 px-2 text-[0.75rem] font-extrabold text-gray-800 text-center border-t border-gray-200 bg-gray-50 min-w-[60px] w-[60px]">${count > 0 ? count : '-'}</td>`;
             });
             
-            tbodyHTML += `<td class="sticky right-0 z-10 bg-blue-100/50 py-3 px-4 text-[0.8rem] font-black text-blue-700 text-center border-t border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)]">${grandTotal}</td>`;
+            tbodyHTML += `<td class="sticky right-0 z-10 bg-blue-100/50 py-3 px-3 text-[0.8rem] font-black text-blue-700 text-center border-t border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[70px] w-[70px]">${grandTotal}</td>`;
             tbodyHTML += `</tr>`;
 
             tbody.innerHTML = tbodyHTML;
@@ -1291,7 +1304,7 @@
             
             tbody.innerHTML = sortedTrips.map(t => {
                 const isLorry = t.type === 'Lorry';
-                const typeTextColor = isLorry ? 'text-blue-600' : 'text-green-600';
+                const typeTextColor = isLorry ? 'text-blue-600' : 'textgreen-600';
                 const cleanName = t.name.split(' (')[0]; 
                 
                 let flights = new Set();
