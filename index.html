@@ -187,13 +187,18 @@
                 </div>
             </div>
 
-            <div class="bg-orange-600 text-white p-4 rounded-lg shadow text-center relative group cursor-help transition hover:bg-orange-700">
-                <h4 class="text-xs uppercase opacity-80" id="kpi-avg-bags-label">Avg Total Bags</h4>
-                <div id="kpi-avg-bags" class="text-3xl font-bold mt-1">-</div>
-                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none text-center border border-gray-700">
-                    <div class="font-bold text-gray-300 uppercase tracking-wide">Based on Interval</div>
-                    <div class="text-gray-400 mt-1">Updates based on selected timeline interval.</div>
-                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+            <!-- MODIFIED AVG BAGS KPI CARD -->
+            <div class="bg-orange-600 text-white p-3 rounded-lg shadow text-center relative group cursor-help transition hover:bg-orange-700 flex flex-col justify-center">
+                <h4 class="text-[0.65rem] uppercase text-white opacity-80 mb-1" id="kpi-avg-bags-label">Total Bags (based on interval selection)</h4>
+                <div class="text-base font-bold mt-1 tracking-wide flex justify-center items-center">
+                    <span class="text-[0.65rem] uppercase text-white opacity-80 mr-1">Avg:</span>
+                    <span id="kpi-avg-bags" class="text-xl text-white">-</span> 
+                    <span class="opacity-50 font-normal mx-2 text-white">|</span> 
+                    <span class="text-[0.65rem] uppercase text-white opacity-80 mr-1">Max:</span>
+                    <span id="kpi-max-bags-interval" class="text-xl text-white">-</span>
+                </div>
+                <div id="tooltip-max-bags-interval" class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-3 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 shadow-xl pointer-events-none text-left border border-gray-700">
+                    <!-- Dynamic Content in JS -->
                 </div>
             </div>
 
@@ -2099,7 +2104,44 @@
                 return c.startsWith('MC1') || c.startsWith('MC2');
             }).map(b => b.flight)).size;
 
-            const avgBagsPerFlight = totalFlights > 0 ? (totalBags / totalFlights).toFixed(1) : '0';
+            // --- NEW INTERVAL CALCULATION FOR AVG & MAX BAGS ---
+            const interval = document.getElementById('slicer-interval').value;
+            const globalTimeMap = new Map();
+
+            bags.forEach(bag => {
+                if (!bag.timestamp) return;
+                let binnedTime;
+                if (interval === 'daily') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+                } else if (interval === 'hourly') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), 0, 0).getTime();
+                } else if (interval === '15min') {
+                    const dt = new Date(bag.timestamp);
+                    const min = dt.getMinutes();
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), min - (min % 15), 0).getTime();
+                } else {
+                    binnedTime = bag.timestamp;
+                }
+                globalTimeMap.set(binnedTime, (globalTimeMap.get(binnedTime) || 0) + 1);
+            });
+
+            let maxBagsInterval = 0;
+            let maxBagsTime = null;
+            let totalBagsInIntervals = 0;
+
+            globalTimeMap.forEach((count, time) => {
+                totalBagsInIntervals += count;
+                if (count > maxBagsInterval) {
+                    maxBagsInterval = count;
+                    maxBagsTime = time;
+                }
+            });
+
+            const intervalCount = globalTimeMap.size;
+            const avgBagsInterval = intervalCount > 0 ? (totalBagsInIntervals / intervalCount).toFixed(1) : '0';
+            // ----------------------------------------------------
 
             let avgHourStd = '-';
             let maxHourStdRaw = '-';
@@ -2145,7 +2187,32 @@
                 document.getElementById('tooltip-flights-sat').innerHTML = `<span class="text-gray-400">SAT:</span> <span class="font-bold text-yellow-400 ml-1">${satFlightsCount}</span>`;
             }
 
-            document.getElementById('kpi-avg-bags').textContent = avgBagsPerFlight;
+            // Inject Interval KPI Data
+            document.getElementById('kpi-avg-bags').textContent = avgBagsInterval;
+            document.getElementById('kpi-max-bags-interval').textContent = maxBagsInterval.toLocaleString();
+
+            const tooltipBoxInterval = document.getElementById('tooltip-max-bags-interval');
+            if (tooltipBoxInterval && maxBagsTime) {
+                const d = new Date(maxBagsTime);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yy = String(d.getFullYear()).slice(-2);
+                
+                // Only show time if not in daily view
+                const timeLabel = interval === 'daily' ? `${dd}/${mm}/${yy}` : `${dd}/${mm}/${yy} ${hh}:${min}`;
+                
+                tooltipBoxInterval.innerHTML = `
+                    <div class="font-bold text-gray-300 uppercase tracking-wide border-b border-gray-600 pb-1.5 mb-2">MAX BAGS RECORDED</div>
+                    <div class="mb-1"><span class="text-gray-400">Date & Time:</span> <span class="font-bold text-white ml-1">${timeLabel}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-blue-400 ml-1">${maxBagsInterval}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+            } else if (tooltipBoxInterval) {
+                tooltipBoxInterval.innerHTML = '';
+            }
+
             document.getElementById('kpi-avg-time-std').textContent = avgHourStd;
             
             const kpiMaxEl = document.getElementById('kpi-max-time-std');
