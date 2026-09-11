@@ -2105,7 +2105,9 @@
             }).map(b => b.flight)).size;
 
             // --- NEW INTERVAL CALCULATION FOR AVG & MAX BAGS ---
-            const interval = document.getElementById('slicer-interval').value;
+            const intervalSelect = document.getElementById('slicer-interval');
+            const interval = intervalSelect.value;
+            const intervalText = intervalSelect.options[intervalSelect.selectedIndex].text;
             const globalTimeMap = new Map();
 
             bags.forEach(bag => {
@@ -2140,7 +2142,8 @@
             });
 
             const intervalCount = globalTimeMap.size;
-            const avgBagsInterval = intervalCount > 0 ? (totalBagsInIntervals / intervalCount).toFixed(1) : '0';
+            // Round the average to whole number
+            const avgBagsInterval = intervalCount > 0 ? Math.round(totalBagsInIntervals / intervalCount) : 0;
             // ----------------------------------------------------
 
             let avgHourStd = '-';
@@ -2187,8 +2190,9 @@
                 document.getElementById('tooltip-flights-sat').innerHTML = `<span class="text-gray-400">SAT:</span> <span class="font-bold text-yellow-400 ml-1">${satFlightsCount}</span>`;
             }
 
-            // Inject Interval KPI Data
-            document.getElementById('kpi-avg-bags').textContent = avgBagsInterval;
+            // Inject Interval KPI Data with dynamic title update
+            document.getElementById('kpi-avg-bags-label').textContent = `Total Bags (${intervalText})`;
+            document.getElementById('kpi-avg-bags').textContent = avgBagsInterval.toLocaleString();
             document.getElementById('kpi-max-bags-interval').textContent = maxBagsInterval.toLocaleString();
 
             const tooltipBoxInterval = document.getElementById('tooltip-max-bags-interval');
