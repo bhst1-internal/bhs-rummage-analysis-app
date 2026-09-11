@@ -604,7 +604,7 @@
                         </div>
                     </div>
                     <!-- Chart Body -->
-                    <div class="w-full h-[280px] relative bg-gray-50 p-2 rounded-b-lg">
+                    <div class="w-full h-[400px] relative bg-gray-50 p-2 rounded-b-lg">
                         <!-- Y-AXIS HOVER TRIGGER FOR KPI TOOLTIP -->
                         <div class="absolute left-0 top-0 bottom-0 w-12 z-20 group cursor-help flex items-center justify-center">
                             <div class="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 shadow-xl pointer-events-none text-left border border-gray-700">
@@ -1365,17 +1365,25 @@
             const hours24 = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}:00`);
             
             generatedTrips.forEach(t => {
-                if(!timeMap[t.time]) timeMap[t.time] = { Lorry: 0, Trolley: 0 };
+                if(!timeMap[t.time]) timeMap[t.time] = { Lorry: 0, Trolley: 0, LorryCount: 0, TrolleyCount: 0 };
+                
+                // Add Bags
                 timeMap[t.time][t.type] += t.bags ? t.bags.length : 0;
+                
+                // Count Transports
+                if(t.type === 'Lorry') timeMap[t.time].LorryCount++;
+                if(t.type === 'Trolley') timeMap[t.time].TrolleyCount++;
             });
             
             hours24.forEach(h => {
-                if(!timeMap[h]) timeMap[h] = { Lorry: 0, Trolley: 0 };
+                if(!timeMap[h]) timeMap[h] = { Lorry: 0, Trolley: 0, LorryCount: 0, TrolleyCount: 0 };
             });
 
             const times = Object.keys(timeMap).sort();
             const lorryBags = times.map(time => timeMap[time].Lorry);
             const trolleyBags = times.map(time => timeMap[time].Trolley);
+            const lorryCounts = times.map(time => timeMap[time].LorryCount);
+            const trolleyCounts = times.map(time => timeMap[time].TrolleyCount);
             
             let trace1, trace2;
             
@@ -1410,7 +1418,24 @@
                     hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
                 };
             }
+
+            // Additional traces for the Transports Count (Secondary Top Chart)
+            const trace3 = {
+                x: times, y: lorryCounts, name: 'Lorry (Transport)',
+                type: 'bar', yaxis: 'y2',
+                marker: { color: 'rgba(59, 130, 246, 0.9)', line: { color: 'rgb(59, 130, 246)', width: 1 } },
+                hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`,
+                showlegend: false
+            };
             
+            const trace4 = {
+                x: times, y: trolleyCounts, name: 'Trolley (Transport)',
+                type: 'bar', yaxis: 'y2',
+                marker: { color: 'rgba(16, 185, 129, 0.9)', line: { color: 'rgb(16, 185, 129)', width: 1 } },
+                hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`,
+                showlegend: false
+            };
+
             const layout = { 
                 barmode: 'stack',
                 margin: { t: 20, l: 60, r: 20, b: 40 }, 
@@ -1425,8 +1450,15 @@
                     range: simChartType === 'bar' ? [-0.5, 23.5] : [0, 23]
                 },
                 yaxis: { 
-                    title: { text: 'Bags Processed', standoff: 30 },
-                    tickfont: { size: 12 }
+                    title: { text: 'Bags Processed', standoff: 15 },
+                    tickfont: { size: 11 },
+                    domain: [0, 0.65] // Bottom 65% of the chart area for Bags
+                },
+                yaxis2: { 
+                    title: { text: 'Transports', standoff: 15 },
+                    tickfont: { size: 11 },
+                    domain: [0.75, 1], // Top 25% of the chart area for Transports
+                    tickformat: 'd'    // Ensure whole numbers only
                 },
                 legend: { orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right', x: 1 },
                 hovermode: 'x unified',
@@ -1439,7 +1471,7 @@
                 }
             };
 
-            Plotly.react('sim-summary-chart', [trace1, trace2], layout, PLOTLY_CONFIG);
+            Plotly.react('sim-summary-chart', [trace1, trace2, trace3, trace4], layout, PLOTLY_CONFIG);
         }
 
         const btnExportSim = document.getElementById('btn-export-sim');
