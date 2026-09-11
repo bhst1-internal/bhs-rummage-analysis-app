@@ -1419,21 +1419,45 @@
                 };
             }
 
-            // Additional traces for the Transports Count (Secondary Top Chart)
+            // Generate conditional data labels for the line charts
+            const lorryText = [];
+            const trolleyText = [];
+            for (let i = 0; i < times.length; i++) {
+                let l = lorryCounts[i];
+                let t = trolleyCounts[i];
+                
+                // Hide label if 0
+                lorryText.push(l > 0 ? String(l) : '');
+                
+                // Hide label if 0, OR if it perfectly overlaps with Lorry at the same point
+                trolleyText.push((t > 0 && t !== l) ? String(t) : ''); 
+            }
+
+            // Additional traces for the Transports Count (Secondary Top Chart) -> Now as Line Charts
             const trace3 = {
                 x: times, y: lorryCounts, name: 'Lorry (Transport)',
-                type: 'bar', yaxis: 'y2',
-                marker: { color: 'rgba(59, 130, 246, 0.9)', line: { color: 'rgb(59, 130, 246)', width: 1 } },
+                type: 'scatter', mode: 'lines+markers+text', yaxis: 'y2',
+                text: lorryText,
+                textposition: 'top center',
+                textfont: { size: 10, color: 'rgb(59, 130, 246)', weight: 'bold' },
+                marker: { color: 'rgba(59, 130, 246, 1)', size: 5 },
+                line: { color: 'rgba(59, 130, 246, 0.8)', width: 2 },
                 hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`,
-                showlegend: false
+                showlegend: false,
+                cliponaxis: false
             };
             
             const trace4 = {
                 x: times, y: trolleyCounts, name: 'Trolley (Transport)',
-                type: 'bar', yaxis: 'y2',
-                marker: { color: 'rgba(16, 185, 129, 0.9)', line: { color: 'rgb(16, 185, 129)', width: 1 } },
+                type: 'scatter', mode: 'lines+markers+text', yaxis: 'y2',
+                text: trolleyText,
+                textposition: 'bottom center', // Offset slightly to separate from Lorry if values are close
+                textfont: { size: 10, color: 'rgb(16, 185, 129)', weight: 'bold' },
+                marker: { color: 'rgba(16, 185, 129, 1)', size: 5 },
+                line: { color: 'rgba(16, 185, 129, 0.8)', width: 2 },
                 hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`,
-                showlegend: false
+                showlegend: false,
+                cliponaxis: false
             };
 
             const layout = { 
@@ -1458,7 +1482,8 @@
                     title: { text: 'Transports', standoff: 15 },
                     tickfont: { size: 11 },
                     domain: [0.75, 1], // Top 25% of the chart area for Transports
-                    tickformat: 'd'    // Ensure whole numbers only
+                    tickformat: 'd',   // Ensure whole numbers only
+                    rangemode: 'tozero' // Ensure line chart starts at 0
                 },
                 legend: { orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right', x: 1 },
                 hovermode: 'x unified',
