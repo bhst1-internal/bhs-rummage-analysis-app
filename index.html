@@ -18,6 +18,8 @@
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
 	<!-- ADD PAPAPARSE FOR FAST CSV LOADING -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- ADD JSZIP FOR ZIP FILE EXTRACTION -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <!-- ADD HTML2CANVAS FOR SECTION SCREENSHOTS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
@@ -3108,40 +3110,62 @@
             triggerFilters();
         }
 
-        function loadCSVFromGitHub() {
+        async function loadDataFromZip() {
             const overlay = document.getElementById('loading-overlay');
             overlay.classList.remove('hidden');
 
-            Papa.parse("data.csv", {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    try {
-                        processBagEntities(results.data);
-                        setDefaultDateFilters();
-                        populateFilterDropdowns();
-                        
-                        document.getElementById('btn-save-as').classList.remove('hidden');
-                        document.getElementById('kpi-section').classList.remove('hidden');
-                        document.getElementById('charts-section').classList.remove('hidden');
-                        
-                        applyFiltersAndRender();
-                    } catch (err) {
-                        console.error("Data Processing Error:", err);
-                    } finally {
+            try {
+                // 1. Fetch the ZIP file from the repository
+                const response = await fetch('rummage_data.zip');
+                if (!response.ok) throw new Error("Failed to fetch rummage_data.zip");
+                
+                const blob = await response.blob();
+                
+                // 2. Load the ZIP content using JSZip
+                const zip = await JSZip.loadAsync(blob);
+                
+                // 3. Find the first .csv file inside the zip
+                const csvFilename = Object.keys(zip.files).find(name => name.endsWith('.csv'));
+                if (!csvFilename) throw new Error("No .csv file found in the ZIP archive");
+                
+                // 4. Extract the CSV text
+                const csvText = await zip.file(csvFilename).async("string");
+                
+                // 5. Parse the extracted text with PapaParse
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        try {
+                            processBagEntities(results.data);
+                            setDefaultDateFilters();
+                            populateFilterDropdowns();
+                            
+                            document.getElementById('btn-save-as').classList.remove('hidden');
+                            document.getElementById('kpi-section').classList.remove('hidden');
+                            document.getElementById('charts-section').classList.remove('hidden');
+                            
+                            applyFiltersAndRender();
+                        } catch (err) {
+                            console.error("Data Processing Error:", err);
+                        } finally {
+                            overlay.classList.add('hidden');
+                        }
+                    },
+                    error: function(err) {
+                        console.error("Error parsing CSV data:", err);
                         overlay.classList.add('hidden');
+                        alert("Could not parse the CSV data inside the ZIP.");
                     }
-                },
-                error: function(err) {
-                    console.error("Error loading data.csv:", err);
-                    overlay.classList.add('hidden');
-                    alert("Could not load data.csv. Please upload it to your GitHub repository.");
-                }
-            });
+                });
+            } catch (err) {
+                console.error("Error loading rummage_data.zip:", err);
+                overlay.classList.add('hidden');
+                alert("Could not load rummage_data.zip. Please ensure it is uploaded to your GitHub repository.");
+            }
         }
 
-        document.addEventListener('DOMContentLoaded', loadCSVFromGitHub);
+        document.addEventListener('DOMContentLoaded', loadDataFromZip);
     </script>
 <script>
   if ('serviceWorker' in navigator) {
