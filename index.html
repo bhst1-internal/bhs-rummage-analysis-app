@@ -3237,40 +3237,150 @@
             triggerFilters();
         }
 
-        function loadCSVFromGitHub() {
-            const overlay = document.getElementById('loading-overlay');
-            overlay.classList.remove('hidden');
+        // -------------------------------------------------------------
+        // NEW MULTI-DATASET MERGING LOGIC (data.csv & chute.csv)
+        // -------------------------------------------------------------
 
-            Papa.parse("data.csv", {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    try {
-                        processBagEntities(results.data);
-                        setDefaultDateFilters();
-                        populateFilterDropdowns();
-                        
-                        document.getElementById('btn-save-as').classList.remove('hidden');
-                        document.getElementById('kpi-section').classList.remove('hidden');
-                        document.getElementById('charts-section').classList.remove('hidden');
-                        
-                        applyFiltersAndRender();
-                    } catch (err) {
-                        console.error("Data Processing Error:", err);
-                    } finally {
-                        overlay.classList.add('hidden');
+        // Helper: Convert PapaParse to return a Promise
+        function parseCSV(url) {
+            return new Promise((resolve) => {
+                Papa.parse(url, {
+                    download: true,
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        resolve(results.data);
+                    },
+                    error: function(err) {
+                        console.warn(`Could not load ${url}. Proceeding without it...`, err);
+                        resolve([]); // Return empty if missing so dashboard doesn't crash completely
                     }
-                },
-                error: function(err) {
-                    console.error("Error loading data.csv:", err);
-                    overlay.classList.add('hidden');
-                    alert("Could not load data.csv. Please upload it to your GitHub repository.");
-                }
+                });
             });
         }
 
-        document.addEventListener('DOMContentLoaded', loadCSVFromGitHub);
+        // Helper: Isolate date combining logic to use for both datasets
+        function getCombinedEventTime(row) {
+            let rawDate = getRawValue(row, ['DATE', 'EVENT DATE']);
+            let rawTime = getRawValue(row, ['TIME']);
+            let rawEventTime = getRawValue(row, ['EVENTTIME', 'EVENT TIME', 'EVENT_TIME']);
+
+            if (rawEventTime !== '-') {
+                return formatExcelDate(rawEventTime);
+            } else if (rawDate !== '-' && rawTime !== '-') {
+                if (/^\d+(\.\d+)?$/.test(String(rawDate).trim()) && /^\d+(\.\d+)?$/.test(String(rawTime).trim())) {
+                    return formatExcelDate(parseFloat(rawDate) + parseFloat(rawTime));
+                } else {
+                    return formatExcelDate(`${rawDate} ${rawTime}`);
+                }
+            } else if (rawDate !== '-') {
+                return formatExcelDate(rawDate);
+            }
+            return '-';
+        }
+
+        // 1. Build a lookup map holding the "First/Earliest" CHUTE per BAGTAGID
+        function buildChuteLookup(chuteData) {
+            const lookup = new Map();
+            
+            chuteData.forEach(row => {
+                const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
+                if (bagTag === '-' || !bagTag) return;
+
+                const combinedTime = getCombinedEventTime(row);
+                const parsedDt = parseCustomDateToJS(combinedTime);
+                const ts = parsedDt ? parsedDt.getTime() : 0;
+                const chute = getRawValue(row, ['CHUTE', 'CHUTE ID', 'CHUTE_ID']);
+
+                if (chute === '-') return;
+
+                // Only store if it's the first time seeing it, OR if this timestamp is earlier than the stored one
+                if (!lookup.has(bagTag)) {
+                    lookup.set(bagTag, { timestamp: ts, chute: chute });
+                } else {
+                    const existing = lookup.get(bagTag);
+                    if (ts > 0 && ts < existing.timestamp) {
+                        lookup.set(bagTag, { timestamp: ts, chute: chute });
+                    }
+                }
+            });
+            return lookup;
+        }
+
+        // 2. Merge the targeted "First Chute" into the Main Data for "OPEN" bags
+        function mergeChuteData(mainData, chuteLookup) {
+            return mainData.map(row => {
+                const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
+                const reason = String(getRawValue(row, ['REASON', 'RUMMAGE REASON'])).trim().toUpperCase();
+
+                // Condition: Only apply mapping to OPEN reasons
+                if (reason === 'OPEN' && chuteLookup.has(bagTag)) {
+                    const firstChute = chuteLookup.get(bagTag).chute;
+                    
+                    if (firstChute && firstChute !== '-') {
+                        // Find the exact key string the main data uses for CHUTE to overwrite it seamlessly
+                        let keyFound = false;
+                        for (let k of Object.keys(row)) {
+                            const upperK = k.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                            if (upperK === 'CHUTE' || upperK === 'CHUTEID') {
+                                row[k] = firstChute;
+                                keyFound = true;
+                                break;
+                            }
+                        }
+                        if (!keyFound) {
+                            row['CHUTE'] = firstChute; // Fallback assignment
+                        }
+                    }
+                }
+                return row;
+            });
+        }
+
+        // Main Execution Pipeline
+        async function loadDataFiles() {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('hidden');
+
+            try {
+                // Fetch both datasets concurrently
+                const [mainData, chuteData] = await Promise.all([
+                    parseCSV("data.csv"),
+                    parseCSV("chute.csv")
+                ]);
+
+                if (mainData.length === 0) {
+                    alert("Could not load data.csv. Please ensure it is uploaded to your repository.");
+                    overlay.classList.add('hidden');
+                    return;
+                }
+
+                // Apply Logic Step 1: Create earliest-event mapping from Chute File
+                const chuteLookup = buildChuteLookup(chuteData);
+
+                // Apply Logic Step 2: Merge the earliest chute back into main dataset
+                const mergedData = mergeChuteData(mainData, chuteLookup);
+
+                // Pass merged data to your existing render pipeline
+                processBagEntities(mergedData);
+                setDefaultDateFilters();
+                populateFilterDropdowns();
+                
+                document.getElementById('btn-save-as').classList.remove('hidden');
+                document.getElementById('kpi-section').classList.remove('hidden');
+                document.getElementById('charts-section').classList.remove('hidden');
+                
+                applyFiltersAndRender();
+                
+            } catch (err) {
+                console.error("Data Processing Error:", err);
+                alert("An error occurred while merging the data files.");
+            } finally {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadDataFiles);
     </script>
 <script>
   if ('serviceWorker' in navigator) {
