@@ -108,7 +108,7 @@
                     <input type="date" id="filter-end-date" class="w-full border p-2 rounded text-sm bg-gray-50 font-mono text-gray-700 outline-none focus:ring-1 focus:ring-blue-500">
                 </div>
                 
-                <!-- CUSTOM SEARCHABLE FLIGHT DROPDOWN -->
+                <!-- CUSTOM SEARCHABLE & MULTI-SELECT FLIGHT DROPDOWN -->
                 <div class="relative w-full">
                     <label class="block text-xs text-gray-500 mb-1">Flight</label>
                     <div id="custom-flight-select" class="w-full border p-2 rounded text-sm bg-gray-50 cursor-pointer flex justify-between items-center outline-none focus:ring-1 focus:ring-blue-500 transition-shadow">
@@ -116,15 +116,22 @@
                         <svg class="w-4 h-4 text-gray-500 flex-shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                     </div>
                     <!-- Dropdown Menu -->
-                    <div id="custom-flight-menu" class="absolute z-50 w-full bg-white border border-gray-200 rounded-md shadow-xl mt-1 hidden flex-col overflow-hidden">
-                        <div class="px-3 py-2.5 hover:bg-blue-50 cursor-pointer text-sm font-bold border-b border-gray-100 text-blue-600 flex-shrink-0 transition-colors" id="opt-all-flights">All Flights</div>
-                        <div class="px-3 py-2.5 hover:bg-purple-50 cursor-pointer text-sm font-bold border-b border-gray-100 text-purple-600 flex-shrink-0 transition-colors" id="opt-shifted-flights">Flight Shifted</div>
+                    <div id="custom-flight-menu" class="absolute z-50 w-full bg-white border border-gray-200 rounded-md shadow-xl mt-1 hidden flex-col overflow-hidden max-h-80">
+                        <label class="flex items-center px-3 py-2.5 hover:bg-blue-50 cursor-pointer text-sm font-bold border-b border-gray-100 text-blue-600 flex-shrink-0 transition-colors" id="opt-all-flights">
+                            <input type="checkbox" id="cb-all-flights" checked class="mr-2 rounded"> All Flights
+                        </label>
+                        <label class="flex items-center px-3 py-2.5 hover:bg-purple-50 cursor-pointer text-sm font-bold border-b border-gray-100 text-purple-600 flex-shrink-0 transition-colors" id="opt-shifted-flights">
+                            <input type="checkbox" id="cb-shifted-flights" class="mr-2 rounded text-purple-600"> Flight Shifted
+                        </label>
+                        <!-- Selected Flights Display Container -->
+                        <div id="selected-flights-container" class="px-3 py-2 border-b border-gray-100 bg-gray-50 flex-wrap gap-1.5 hidden flex-shrink-0 max-h-24 overflow-y-auto sim-scroll">
+                            <!-- Populated dynamically via JS -->
+                        </div>
                         <div class="p-2 border-b border-gray-100 bg-gray-50 flex-shrink-0">
                             <input type="text" id="flight-search-input" placeholder="Search flight..." class="w-full border border-gray-300 py-1.5 px-2 rounded text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white shadow-inner">
                         </div>
-                        <div id="flight-options-list" class="overflow-y-auto sim-scroll flex-1 p-1 max-h-[220px]"></div>
+                        <div id="flight-options-list" class="overflow-y-auto sim-scroll flex-1 p-1 max-h-[180px]"></div>
                     </div>
-                    <input type="hidden" id="slicer-flight" value="ALL">
                 </div>
                 
                 <!-- MULTI-SELECT CUSTOM DROPDOWNS -->
@@ -333,11 +340,11 @@
                         <div class="grid grid-cols-3 gap-1 mb-1.5 shrink-0 bg-gray-50 p-1.5 rounded border border-gray-200">
                             <div>
                                 <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="Loading Time / Bag (s)">Loading Time / Bag (s)</label>
-                                <input type="number" id="sim-f-load" value="6" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                                <input type="number" id="sim-f-load" value="7" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
                             </div>
                             <div>
                                 <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="Off Load Time / Bag (s)">Off Load Time / Bag (s)</label>
-                                <input type="number" id="sim-f-unload" value="5" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                                <input type="number" id="sim-f-unload" value="6" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
                             </div>
                             <div>
                                 <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="Efficiency (%)">Efficiency (%)</label>
@@ -345,15 +352,15 @@
                             </div>
                             <div>
                                 <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="MTB-MTB Transport Time (m)">MTB-MTB Transport Time (m)</label>
-                                <input type="number" id="sim-f-mm" value="10" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                                <input type="number" id="sim-f-mm" value="13" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
                             </div>
                             <div>
                                 <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="SAT-SAT Transport Time (m)">SAT-SAT Transport Time (m)</label>
-                                <input type="number" id="sim-f-ss" value="10" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                                <input type="number" id="sim-f-ss" value="13" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
                             </div>
                             <div>
                                 <label class="block text-[0.5rem] font-bold text-gray-500 text-center truncate" title="MTB ⇆ SAT Transport Time (m)">MTB ⇆ SAT Transport Time (m)</label>
-                                <input type="number" id="sim-f-ms" value="15" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
+                                <input type="number" id="sim-f-ms" value="20" min="0" step="1" class="w-full text-xs text-center p-0.5 mt-0.5 border border-gray-300 rounded focus:ring-blue-500 bg-white">
                             </div>
                         </div>
 
@@ -723,7 +730,7 @@
         const areaColorPalette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#14b8a6', '#6366f1', '#eab308'];
         const areaColorMap = new Map();
 
-        let filterState = { reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
+        let filterState = { flight: ['ALL'], reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
 
         const SHIFTED_FLIGHTS_LIST = [
             "3U3994", "3U3996", "CA872", "CI722", "CX722", "CZ3048", "CZ350", 
@@ -1743,7 +1750,6 @@
         const flightMenu = document.getElementById('custom-flight-menu');
         const flightSelect = document.getElementById('custom-flight-select');
         const flightSearchInput = document.getElementById('flight-search-input');
-        const hiddenFlightInput = document.getElementById('slicer-flight');
 
         flightSelect.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1765,19 +1771,72 @@
             });
         });
 
-        document.getElementById('opt-all-flights').addEventListener('click', () => {
-            hiddenFlightInput.value = 'ALL';
-            document.getElementById('custom-flight-text').textContent = 'All Flights';
-            flightMenu.classList.add('hidden');
+        function handleFlightSelection(flight, isChecked) {
+            if (isChecked) {
+                if (filterState.flight.includes('ALL') || filterState.flight.includes('SHIFTED_FLIGHTS')) {
+                    filterState.flight = [];
+                }
+                if (!filterState.flight.includes(flight)) filterState.flight.push(flight);
+            } else {
+                const idx = filterState.flight.indexOf(flight);
+                if (idx > -1) filterState.flight.splice(idx, 1);
+                if (filterState.flight.length === 0) {
+                    filterState.flight = ['ALL'];
+                }
+            }
+            updateFlightUI();
             triggerFilters();
+        }
+
+        document.getElementById('cb-all-flights').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                filterState.flight = ['ALL'];
+                updateFlightUI();
+                triggerFilters();
+            } else {
+                e.target.checked = true; // Prevent unchecking if nothing else is selected
+            }
         });
 
-        document.getElementById('opt-shifted-flights').addEventListener('click', () => {
-            hiddenFlightInput.value = 'SHIFTED_FLIGHTS';
-            document.getElementById('custom-flight-text').textContent = 'Flight Shifted';
-            flightMenu.classList.add('hidden');
-            triggerFilters();
+        document.getElementById('cb-shifted-flights').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                filterState.flight = ['SHIFTED_FLIGHTS'];
+                updateFlightUI();
+                triggerFilters();
+            } else {
+                filterState.flight = ['ALL'];
+                updateFlightUI();
+                triggerFilters();
+            }
         });
+
+        function updateFlightUI() {
+            const textEl = document.getElementById('custom-flight-text');
+            const container = document.getElementById('selected-flights-container');
+            
+            if (filterState.flight.includes('ALL')) {
+                textEl.textContent = 'All Flights';
+                container.classList.add('hidden');
+                container.classList.remove('flex');
+            } else if (filterState.flight.includes('SHIFTED_FLIGHTS')) {
+                textEl.textContent = 'Flight Shifted';
+                container.classList.add('hidden');
+                container.classList.remove('flex');
+            } else {
+                textEl.textContent = `${filterState.flight.length} Flights Selected`;
+                container.innerHTML = filterState.flight.map(f => `<span class="bg-blue-100 text-blue-700 text-[0.65rem] font-bold px-2 py-0.5 rounded border border-blue-200 inline-block">${f}</span>`).join('');
+                container.classList.remove('hidden');
+                container.classList.add('flex');
+            }
+            
+            // Sync specific checkboxes
+            document.getElementById('cb-all-flights').checked = filterState.flight.includes('ALL');
+            document.getElementById('cb-shifted-flights').checked = filterState.flight.includes('SHIFTED_FLIGHTS');
+            
+            document.querySelectorAll('.flight-checkbox').forEach(cb => {
+                cb.checked = filterState.flight.includes(cb.value);
+            });
+        }
 
         setupDropdownToggle('btn-reason', 'menu-reason');
         setupDropdownToggle('btn-handler', 'menu-handler');
@@ -2066,16 +2125,15 @@
             const flightOptionsList = document.getElementById('flight-options-list');
             flightOptionsList.innerHTML = '';
             Array.from(flights).sort().forEach(f => {
-                const div = document.createElement('div');
-                div.className = 'px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm flight-item rounded-md mb-0.5 text-gray-700 font-medium transition-colors';
-                div.textContent = f;
-                div.addEventListener('click', () => {
-                    hiddenFlightInput.value = f;
-                    document.getElementById('custom-flight-text').textContent = f;
-                    flightMenu.classList.add('hidden');
-                    triggerFilters();
+                const lbl = document.createElement('label');
+                lbl.className = 'flex items-center px-2 py-1.5 hover:bg-gray-50 cursor-pointer text-sm flight-item rounded-md text-gray-700 font-medium transition-colors w-full';
+                lbl.innerHTML = `<input type="checkbox" value="${f}" class="mr-2 rounded flight-checkbox" ${filterState.flight.includes(f) ? 'checked' : ''}> <span class="truncate">${f}</span>`;
+                
+                const cb = lbl.querySelector('input');
+                cb.addEventListener('change', (e) => {
+                    handleFlightSelection(f, e.target.checked);
                 });
-                flightOptionsList.appendChild(div);
+                flightOptionsList.appendChild(lbl);
             });
 
             populateMultiSelect('menu-reason', 'text-reason', Array.from(reasons).sort(), 'All Reasons', filterState.reason);
@@ -2086,7 +2144,6 @@
         function applyFiltersAndRender() {
             const startDateStr = document.getElementById('filter-start-date').value;
             const endDateStr = document.getElementById('filter-end-date').value;
-            const selectedFlight = hiddenFlightInput.value;
             const searchBagTag = document.getElementById('slicer-search-bag').value.trim().toLowerCase();
 
             const filteredBags = [];
@@ -2095,10 +2152,10 @@
                 if (startDateStr && bag.dateOnlyISO < startDateStr) return;
                 if (endDateStr && bag.dateOnlyISO > endDateStr) return;
                 
-                if (selectedFlight === 'SHIFTED_FLIGHTS') {
+                if (filterState.flight.includes('SHIFTED_FLIGHTS')) {
                     if (!SHIFTED_FLIGHTS_LIST.includes(bag.flight)) return;
-                } else if (selectedFlight !== 'ALL' && bag.flight !== selectedFlight) {
-                    return;
+                } else if (!filterState.flight.includes('ALL')) {
+                    if (!filterState.flight.includes(bag.flight)) return;
                 }
                 
                 if (!filterState.reason.includes('ALL') && !filterState.reason.includes(bag.reason)) return;
@@ -3125,12 +3182,12 @@
         function resetFilters() {
             setDefaultDateFilters();
             
-            hiddenFlightInput.value = 'ALL';
-            document.getElementById('custom-flight-text').textContent = 'All Flights';
             flightSearchInput.value = '';
             document.querySelectorAll('.flight-item').forEach(item => item.style.display = 'block');
 
-            filterState = { reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
+            filterState = { flight: ['ALL'], reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
+            updateFlightUI();
+
             document.getElementById('text-reason').textContent = 'All Reasons';
             document.getElementById('text-handler').textContent = 'All GH';
             document.getElementById('text-reclaim').textContent = 'All Areas';
