@@ -3237,41 +3237,40 @@
             triggerFilters();
         }
 
-        function loadExcelFromGitHub() {
+        async function loadExcelFromGitHub() {
             const overlay = document.getElementById('loading-overlay');
             overlay.classList.remove('hidden');
 
-            fetch("data.xlsx")
-                .then(response => {
-                    if (!response.ok) throw new Error("Network response was not ok");
-                    return response.arrayBuffer();
-                })
-                .then(data => {
-                    try {
-                        const workbook = XLSX.read(new Uint8Array(data), { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
-                        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                        const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
+            try {
+                // Fetch the Excel file instead of CSV
+                const response = await fetch("data.xlsx");
+                if (!response.ok) throw new Error("Failed to fetch data.xlsx");
+                
+                // Convert the response to an ArrayBuffer
+                const arrayBuffer = await response.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                
+                // Parse the Excel file using SheetJS (XLSX)
+                const workbook = XLSX.read(data, { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
+                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
 
-                        processBagEntities(rawRows);
-                        setDefaultDateFilters();
-                        populateFilterDropdowns();
-                        
-                        document.getElementById('btn-save-as').classList.remove('hidden');
-                        document.getElementById('kpi-section').classList.remove('hidden');
-                        document.getElementById('charts-section').classList.remove('hidden');
-                        
-                        applyFiltersAndRender();
-                    } catch (err) {
-                        console.error("Data Processing Error:", err);
-                    } finally {
-                        overlay.classList.add('hidden');
-                    }
-                })
-                .catch(err => {
-                    console.error("Error loading data.xlsx:", err);
-                    overlay.classList.add('hidden');
-                    alert("Could not load data.xlsx. Please ensure the file exists in the repository.");
-                });
+                // Process data and initialize dashboard
+                processBagEntities(rawRows);
+                setDefaultDateFilters();
+                populateFilterDropdowns();
+                
+                document.getElementById('btn-save-as').classList.remove('hidden');
+                document.getElementById('kpi-section').classList.remove('hidden');
+                document.getElementById('charts-section').classList.remove('hidden');
+                
+                applyFiltersAndRender();
+            } catch (err) {
+                console.error("Error loading data.xlsx:", err);
+                alert("Could not load data.xlsx. Please upload it to your GitHub repository.");
+            } finally {
+                overlay.classList.add('hidden');
+            }
         }
 
         document.addEventListener('DOMContentLoaded', loadExcelFromGitHub);
