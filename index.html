@@ -16,8 +16,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Plotly.js for Charts -->
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
-	<!-- ADD PAPAPARSE FOR FAST CSV LOADING -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <!-- ADD HTML2CANVAS FOR SECTION SCREENSHOTS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
@@ -66,7 +64,7 @@
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
             <h2 class="text-xl font-bold text-gray-800">Processing Data...</h2>
-            <p class="text-sm text-gray-500 mt-2">Parsing unique records and rendering dashboard.</p>
+            <p class="text-sm text-gray-500 mt-2">Fetching Excel files and rendering dashboard.</p>
         </div>
     </div>
 
@@ -2026,7 +2024,7 @@
             return '';
         }
 
-        function processBagEntities(rows) {
+        function processBagEntities(rows, firstChuteMap = new Map()) {
             bagDataset.clear();
 
             rows.forEach((row, index) => {
@@ -2050,6 +2048,13 @@
 
                 const parsedDt = parseCustomDateToJS(combinedEventTime);
                 const rawHourStd = String(getRawValue(row, ['HOUR BEFORE STD', 'HOURS BEFORE STD', 'HOURS_BEFORE_STD', 'HOUR_BEFORE_STD'])).trim();
+                const rawReason = String(getRawValue(row, ['REASON', 'RUMMAGE REASON'])).trim();
+                let finalChute = String(getRawValue(row, ['CHUTE', 'CHUTE ID', 'CHUTE_ID'])).trim();
+
+                // Apply lookup logic to "OPEN" bags.
+                if (rawReason.toUpperCase() === 'OPEN' && firstChuteMap.has(bagTagId)) {
+                    finalChute = firstChuteMap.get(bagTagId);
+                }
 
                 const bagEntity = {
                     bagTagId:      bagTagId,
@@ -2060,8 +2065,8 @@
                     flight:        String(getRawValue(row, ['FLIGHT', 'FLIGHT NO', 'FLIGHT_NO'])).trim(),
                     rummage:       String(getRawValue(row, ['RUMMAGE', 'RUMMAGE STATUS', 'RUMMAGE_STATUS'])).trim(),
                     rummageArea:   String(getRawValue(row, ['RUMMAGE AREA', 'RUMMAGE_AREA', 'RECLAIM AREA', 'AREA'])).trim(),
-                    reason:        String(getRawValue(row, ['REASON', 'RUMMAGE REASON'])).trim(),
-                    chute:         String(getRawValue(row, ['CHUTE', 'CHUTE ID', 'CHUTE_ID'])).trim(),
+                    reason:        rawReason,
+                    chute:         finalChute,
                     groundHandler: String(getRawValue(row, ['GROUND HANDLER', 'GROUND_HANDLER', 'HANDLER'])).trim(),
                     hourBeforeStd: rawHourStd,
                     hourBeforeStdNum: parseHourString(rawHourStd) 
@@ -3237,40 +3242,86 @@
             triggerFilters();
         }
 
-        function loadCSVFromGitHub() {
+        async function loadDataFromGitHub() {
             const overlay = document.getElementById('loading-overlay');
             overlay.classList.remove('hidden');
 
-            Papa.parse("data.csv", {
-                download: true,
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    try {
-                        processBagEntities(results.data);
-                        setDefaultDateFilters();
-                        populateFilterDropdowns();
-                        
-                        document.getElementById('btn-save-as').classList.remove('hidden');
-                        document.getElementById('kpi-section').classList.remove('hidden');
-                        document.getElementById('charts-section').classList.remove('hidden');
-                        
-                        applyFiltersAndRender();
-                    } catch (err) {
-                        console.error("Data Processing Error:", err);
-                    } finally {
-                        overlay.classList.add('hidden');
+            try {
+                // Fetch both files in parallel
+                const [dataRes, chuteRes] = await Promise.all([
+                    fetch("data.xlsx"),
+                    fetch("chute.xlsx")
+                ]);
+
+                if (!dataRes.ok) throw new Error("Could not load data.xlsx");
+                if (!chuteRes.ok) throw new Error("Could not load chute.xlsx");
+
+                const dataBuffer = await dataRes.arrayBuffer();
+                const chuteBuffer = await chuteRes.arrayBuffer();
+
+                // Parse Chute Data
+                const chuteWb = XLSX.read(new Uint8Array(chuteBuffer), { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
+                const chuteRows = XLSX.utils.sheet_to_json(chuteWb.Sheets[chuteWb.SheetNames[0]], { defval: "", raw: true, rawNumbers: true });
+
+                const chuteDataMap = new Map();
+                chuteRows.forEach(row => {
+                    const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
+                    if (bagTag === '-' || bagTag === '') return;
+
+                    const rawDate = getRawValue(row, ['DATE', 'EVENT DATE', 'EVENTTIME', 'EVENT_TIME']);
+                    const rawTime = getRawValue(row, ['TIME', 'EVENT TIME']);
+
+                    let combinedEventTime = '-';
+                    if (rawDate !== '-' && rawTime !== '-') {
+                        if (/^\d+(\.\d+)?$/.test(String(rawDate).trim()) && /^\d+(\.\d+)?$/.test(String(rawTime).trim())) {
+                            combinedEventTime = formatExcelDate(parseFloat(rawDate) + parseFloat(rawTime));
+                        } else {
+                            combinedEventTime = formatExcelDate(`${rawDate} ${rawTime}`);
+                        }
+                    } else if (rawDate !== '-') {
+                        combinedEventTime = formatExcelDate(rawDate);
+                    } else if (rawTime !== '-') {
+                        combinedEventTime = formatExcelDate(rawTime);
                     }
-                },
-                error: function(err) {
-                    console.error("Error loading data.csv:", err);
-                    overlay.classList.add('hidden');
-                    alert("Could not load data.csv. Please upload it to your GitHub repository.");
-                }
-            });
+
+                    const parsedDt = parseCustomDateToJS(combinedEventTime);
+                    const timestamp = parsedDt ? parsedDt.getTime() : 0;
+                    const chute = String(getRawValue(row, ['CHUTE', 'CHUTE ID', 'CHUTE_ID'])).trim();
+
+                    if (!chuteDataMap.has(bagTag)) chuteDataMap.set(bagTag, []);
+                    chuteDataMap.get(bagTag).push({ timestamp, chute });
+                });
+
+                const firstChuteMap = new Map();
+                chuteDataMap.forEach((events, bagTag) => {
+                    events.sort((a, b) => a.timestamp - b.timestamp);
+                    firstChuteMap.set(bagTag, events[0].chute);
+                });
+
+                // Parse Main Data
+                const dataWb = XLSX.read(new Uint8Array(dataBuffer), { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
+                const dataRows = XLSX.utils.sheet_to_json(dataWb.Sheets[dataWb.SheetNames[0]], { defval: "", raw: true, rawNumbers: true });
+
+                // Process Main Data with Chute Mapping
+                processBagEntities(dataRows, firstChuteMap);
+                setDefaultDateFilters();
+                populateFilterDropdowns();
+
+                document.getElementById('btn-save-as').classList.remove('hidden');
+                document.getElementById('kpi-section').classList.remove('hidden');
+                document.getElementById('charts-section').classList.remove('hidden');
+
+                applyFiltersAndRender();
+
+            } catch (err) {
+                console.error("Error loading Excel files from GitHub:", err);
+                alert("Could not load data.xlsx or chute.xlsx. Please ensure both files are uploaded to your GitHub repository.");
+            } finally {
+                overlay.classList.add('hidden');
+            }
         }
 
-        document.addEventListener('DOMContentLoaded', loadCSVFromGitHub);
+        document.addEventListener('DOMContentLoaded', loadDataFromGitHub);
     </script>
 <script>
   if ('serviceWorker' in navigator) {
