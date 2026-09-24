@@ -233,7 +233,7 @@
             <!-- 1. EB TIMELINE (AREA CHART & DATA TABLE) -->
             <div id="timelineSection" class="bg-white rounded-lg shadow p-6 border-t-4 border-indigo-500 transition-all relative">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-sm font-bold text-gray-700 uppercase tracking-wide">1. Operational Timeline</h2>
+                    <h2 class="font-bold text-gray-700">1. Operational Timeline</h2>
                     
                     <div class="flex items-center space-x-3">
                         <button id="saveJpegBtn" onclick="saveTimelineAsJPEG()" title="Save Section as JPEG" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;border:1px solid #d1d5db;font-size:.65rem;font-weight:700;color:#4b5563;cursor:pointer;background:#ffffff">
@@ -472,7 +472,7 @@
         <div id="reclaim-details-section" class="bg-white p-6 rounded-lg shadow border-t-4 border-yellow-500 mt-6 relative">
             <div class="flex justify-between items-start mb-4">
                 <div>
-                    <h3 class="font-bold text-xl text-gray-800 mb-1">Rummage Details: <span id="lbl-reclaim-name" class="text-blue-600">All Areas</span></h3>
+                    <h3 class="font-bold text-gray-700 mb-1">Rummage Details: <span id="lbl-reclaim-name" class="text-blue-600">All Areas</span></h3>
                     <p class="text-sm text-gray-500">Direct 1:1 entity list mapped strictly by unique BAGTAGID.</p>
                 </div>
                 <div class="flex items-center gap-3">
@@ -713,6 +713,7 @@
         const PLOTLY_CONFIG = { responsive: true, displayModeBar: false };
         const bagDataset = new Map();
         let currentFilteredBags = []; 
+        let currentTableLimit = 500;
         let simEntries = []; 
         let generatedTrips = []; 
         
@@ -1312,12 +1313,20 @@
                 const typeTextColor = isLorry ? 'text-blue-600' : 'textgreen-600';
                 const cleanName = t.name.split(' (')[0]; 
                 
-                let flights = new Set();
+                let flightChuteData = {};
                 let sumHour = 0;
                 let validCount = 0;
+                
                 if (t.bags) {
                     t.bags.forEach(b => {
-                        if (b.flight && b.flight !== '-') flights.add(b.flight);
+                        if (b.flight && b.flight !== '-') {
+                            let key = `${b.flight}_${b.chute}`;
+                            if (!flightChuteData[key]) {
+                                flightChuteData[key] = { flight: b.flight, chute: b.chute, count: 0 };
+                            }
+                            flightChuteData[key].count++;
+                        }
+                        
                         if (b.hourBeforeStdNum !== null) {
                             sumHour += b.hourBeforeStdNum;
                             validCount++;
@@ -1325,7 +1334,19 @@
                     });
                 }
                 
-                let flightStr = Array.from(flights).join('<br>');
+                let flightStr = Object.values(flightChuteData).map(data => {
+                    return `
+                    <div class="relative group cursor-help inline-block">
+                        <span class="text-blue-600 hover:text-blue-800 border-b border-dashed border-blue-400">${data.flight}</span>
+                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-xl pointer-events-none text-left border border-gray-700 font-normal">
+                            <div class="mb-1"><span class="text-gray-400">Flight:</span> <span class="font-bold text-white ml-1">${data.flight}</span></div>
+                            <div class="mb-1"><span class="text-gray-400">Chute:</span> <span class="font-bold text-white ml-1">${data.chute}</span></div>
+                            <div><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-blue-400 ml-1">${data.count}</span></div>
+                            <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                        </div>
+                    </div>`;
+                }).join('<br>');
+                
                 if (!flightStr) flightStr = '-';
                 
                 let avgStdStr = '-';
@@ -1342,7 +1363,7 @@
                 <tr class="hover:bg-gray-50 transition border-b border-gray-100">
                     <td class="py-2.5 px-2 text-center font-mono font-bold text-gray-800 text-sm whitespace-nowrap">${t.time}</td>
                     <td class="py-2.5 px-2 text-center font-bold ${typeTextColor} text-sm whitespace-nowrap">${cleanName}</td>
-                    <td class="py-2.5 px-2 text-center font-bold text-gray-700 text-xs leading-tight">${flightStr}</td>
+                    <td class="py-2.5 px-2 text-center font-bold text-gray-700 text-xs">${flightStr}</td>
                     <td class="py-2.5 px-2 text-center font-mono text-gray-600 text-sm">${t.cap}</td>
                     <td class="py-2.5 px-2 text-center font-bold text-gray-800 text-sm">${t.totalTrips || 0}</td>
                     <td class="py-2.5 px-2 text-center font-bold text-blue-600 text-sm">${t.bags ? t.bags.length : 0}</td>
@@ -2108,6 +2129,7 @@
             renderKPIs(filteredBags);
             renderTimeline(filteredBags);
             renderRummageLoad(filteredBags);
+            currentTableLimit = 500; // Reset pagination limit
             renderTable(filteredBags);
             renderDurationHistogram(filteredBags);
             renderTimelineTable(filteredBags);
@@ -3033,8 +3055,7 @@
                 return;
             }
 
-            const MAX_ROWS = 500;
-            const displayBags = bags.slice(0, MAX_ROWS);
+            const displayBags = bags.slice(0, currentTableLimit);
             const fragment = document.createDocumentFragment();
 
             displayBags.forEach(bag => {
@@ -3079,13 +3100,26 @@
                 fragment.appendChild(tr);
             });
             
-            if (bags.length > MAX_ROWS) {
+            if (bags.length > currentTableLimit) {
                  const tr = document.createElement('tr');
-                 tr.innerHTML = `<td colspan="10" class="py-4 text-gray-500 italic text-center bg-gray-50">Showing first ${MAX_ROWS} rows. (Total: ${bags.length})</td>`;
+                 tr.innerHTML = `
+                 <td colspan="10" class="py-4 text-center bg-gray-50">
+                     <button id="btn-load-more-rows" class="px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 font-bold rounded hover:bg-blue-100 transition text-xs shadow-sm focus:outline-none">
+                         Load Next 500 Rows (Showing ${currentTableLimit} of ${bags.length})
+                     </button>
+                 </td>`;
                  fragment.appendChild(tr);
             }
 
             tbody.appendChild(fragment);
+
+            const loadMoreBtn = document.getElementById('btn-load-more-rows');
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', () => {
+                    currentTableLimit += 500;
+                    renderTable(currentFilteredBags);
+                });
+            }
         }
 
         function resetFilters() {
