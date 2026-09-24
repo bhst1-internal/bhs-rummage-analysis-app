@@ -16,8 +16,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Plotly.js for Charts -->
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
-	<!-- ADD PAPAPARSE FOR FAST CSV LOADING -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <!-- ADD HTML2CANVAS FOR SECTION SCREENSHOTS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
@@ -3237,43 +3235,49 @@
             triggerFilters();
         }
 
-        async function loadExcelFromGitHub() {
+        function loadXLSXFromGitHub() {
             const overlay = document.getElementById('loading-overlay');
             overlay.classList.remove('hidden');
 
-            try {
-                // Fetch the Excel file instead of CSV
-                const response = await fetch("data.xlsx");
-                if (!response.ok) throw new Error("Failed to fetch data.xlsx");
-                
-                // Convert the response to an ArrayBuffer
-                const arrayBuffer = await response.arrayBuffer();
-                const data = new Uint8Array(arrayBuffer);
-                
-                // Parse the Excel file using SheetJS (XLSX)
-                const workbook = XLSX.read(data, { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
+            fetch("data.xlsx")
+                .then(response => {
+                    if (!response.ok) throw new Error("Could not fetch data.xlsx");
+                    return response.arrayBuffer();
+                })
+                .then(buffer => {
+                    try {
+                        const data = new Uint8Array(buffer);
+                        // Read the workbook using SheetJS
+                        const workbook = XLSX.read(data, { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
+                        // Assume data is in the first sheet
+                        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+                        // Convert sheet to JSON array
+                        const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
 
-                // Process data and initialize dashboard
-                processBagEntities(rawRows);
-                setDefaultDateFilters();
-                populateFilterDropdowns();
-                
-                document.getElementById('btn-save-as').classList.remove('hidden');
-                document.getElementById('kpi-section').classList.remove('hidden');
-                document.getElementById('charts-section').classList.remove('hidden');
-                
-                applyFiltersAndRender();
-            } catch (err) {
-                console.error("Error loading data.xlsx:", err);
-                alert("Could not load data.xlsx. Please upload it to your GitHub repository.");
-            } finally {
-                overlay.classList.add('hidden');
-            }
+                        processBagEntities(rawRows);
+                        setDefaultDateFilters();
+                        populateFilterDropdowns();
+                        
+                        document.getElementById('btn-save-as').classList.remove('hidden');
+                        document.getElementById('kpi-section').classList.remove('hidden');
+                        document.getElementById('charts-section').classList.remove('hidden');
+                        
+                        applyFiltersAndRender();
+                    } catch (err) {
+                        console.error("Data Processing Error:", err);
+                        alert("Error parsing the Excel file.");
+                    } finally {
+                        overlay.classList.add('hidden');
+                    }
+                })
+                .catch(err => {
+                    console.error("Error loading data.xlsx:", err);
+                    overlay.classList.add('hidden');
+                    alert("Could not load data.xlsx. Please make sure the file is uploaded to your repository.");
+                });
         }
 
-        document.addEventListener('DOMContentLoaded', loadExcelFromGitHub);
+        document.addEventListener('DOMContentLoaded', loadXLSXFromGitHub);
     </script>
 <script>
   if ('serviceWorker' in navigator) {
