@@ -593,7 +593,7 @@
                 </div>
             </div>
             
-            <div class="flex-1 overflow-y-auto sim-scroll flex flex-col p-6 bg-white gap-6">
+            <div class="flex-1 overflow-y-auto sim-scroll flex flex-col p-6 bg-white gap-6 relative">
                 <!-- CHART CONTAINER WITH HEADER -->
                 <div class="w-full bg-white rounded-lg border border-gray-200 shadow-sm shrink-0 flex flex-col">
                     <div class="flex justify-between items-center px-4 py-2 border-b border-gray-100 bg-gray-50 rounded-t-lg">
@@ -630,7 +630,7 @@
                 <!-- SUMMARY TABLE CONTAINER -->
                 <div class="w-full border border-gray-200 rounded-lg shadow-sm overflow-hidden shrink-0">
                     <div class="overflow-x-auto table-scroll max-h-[40vh]">
-                        <table class="w-full text-center border-collapse min-w-[900px] table-auto">
+                        <table class="w-full text-center border-collapse min-w-[900px] table-auto relative">
                             <thead class="bg-gray-100 sticky top-0 shadow-sm z-10">
                                 <tr>
                                     <th class="border-b border-gray-200 py-2.5 px-2 text-xs font-bold text-gray-600 uppercase tracking-wide text-center w-[10%]">Time</th>
@@ -651,6 +651,12 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- Modal Fixed Flight Tooltip -->
+    <div id="modal-flight-tooltip" class="fixed bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible transition-opacity duration-200 shadow-xl pointer-events-none z-[9999] border border-gray-700 w-max px-4 py-2.5 transform -translate-x-1/2 -translate-y-full mt-[-15px]">
+        <div id="modal-flight-tooltip-content"></div>
+        <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
     </div>
 
     <!-- Simulator Transport Popup Modal -->
@@ -741,6 +747,21 @@
             "MH88", "MU796", "QG503", "SQ103", "SQ105", "SQ107", "SQ113", 
             "SQ115", "SQ121", "SQ125", "SQ127", "SV829", "SV835", "SV841", "UL315"
         ];
+
+        // --- NEW BAG EXCLUSION LOGIC FOR SIMULATOR ---
+        function isBagExcludedFromSim(b) {
+            const chute = (b.chute || '').trim().toUpperCase();
+            const rArea = (b.rummageArea || '').trim().toUpperCase();
+            const rStatus = (b.rummage || '').trim().toUpperCase();
+            
+            if (chute === '-' || chute === '') return false;
+            
+            // Exclude bags already manually dispatched to their final chute area.
+            if (chute === rArea || chute === rStatus) {
+                return true;
+            }
+            return false;
+        }
 
         // --- TIMELINE DATA TABLE & CONTROLS LOGIC ---
         let isTimelineTableExpanded = false;
@@ -1193,6 +1214,8 @@
 
             currentFilteredBags.forEach(b => {
                 if (!b.timestamp) return;
+                if (isBagExcludedFromSim(b)) return; // Exclude bags already at Chute
+
                 const d = new Date(b.timestamp);
                 const bMins = d.getHours() * 60 + d.getMinutes();
                 const binMins = bMins - (bMins % durationMins);
@@ -1342,16 +1365,7 @@
                 }
                 
                 let flightStr = Object.values(flightChuteData).map(data => {
-                    return `
-                    <div class="relative group cursor-help inline-block">
-                        <span class="text-blue-600 hover:text-blue-800 border-b border-dashed border-blue-400">${data.flight}</span>
-                        <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 w-max px-4 py-2.5 bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] shadow-xl pointer-events-none text-left border border-gray-700 font-normal">
-                            <div class="mb-1"><span class="text-gray-400">Flight:</span> <span class="font-bold text-white ml-1">${data.flight}</span></div>
-                            <div class="mb-1"><span class="text-gray-400">Chute:</span> <span class="font-bold text-white ml-1">${data.chute}</span></div>
-                            <div><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-blue-400 ml-1">${data.count}</span></div>
-                            <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
-                        </div>
-                    </div>`;
+                    return `<span class="text-blue-600 hover:text-blue-800 border-b border-dashed border-blue-400 cursor-help modal-flight-hover" data-flight="${data.flight}" data-chute="${data.chute}" data-count="${data.count}">${data.flight}</span>`;
                 }).join('<br>');
                 
                 if (!flightStr) flightStr = '-';
@@ -1386,6 +1400,44 @@
                 Plotly.Plots.resize('sim-summary-chart');
             }, 350);
         };
+
+        // --- NEW EVENT LISTENERS FOR MODAL FLIGHT HOVER TOOLTIP ---
+        const simSummaryTbody = document.getElementById('sim-summary-tbody');
+        const modalFlightTooltip = document.getElementById('modal-flight-tooltip');
+        const modalFlightTooltipContent = document.getElementById('modal-flight-tooltip-content');
+
+        simSummaryTbody.addEventListener('mouseover', (e) => {
+            const el = e.target.closest('.modal-flight-hover');
+            if (!el) return;
+            
+            const flt = el.getAttribute('data-flight');
+            const chute = el.getAttribute('data-chute');
+            const count = el.getAttribute('data-count');
+            
+            modalFlightTooltipContent.innerHTML = `
+                <div class="mb-1"><span class="text-gray-400">Flight:</span> <span class="font-bold text-white ml-1">${flt}</span></div>
+                <div class="mb-1"><span class="text-gray-400">Chute:</span> <span class="font-bold text-white ml-1">${chute}</span></div>
+                <div><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-blue-400 ml-1">${count}</span></div>
+            `;
+            
+            modalFlightTooltip.classList.remove('invisible', 'opacity-0');
+            modalFlightTooltip.classList.add('opacity-100', 'visible');
+        });
+
+        simSummaryTbody.addEventListener('mousemove', (e) => {
+            if (!modalFlightTooltip.classList.contains('invisible')) {
+                modalFlightTooltip.style.left = e.clientX + 'px';
+                modalFlightTooltip.style.top = e.clientY + 'px';
+            }
+        });
+
+        simSummaryTbody.addEventListener('mouseout', (e) => {
+            const el = e.target.closest('.modal-flight-hover');
+            if (!el) return;
+            modalFlightTooltip.classList.add('invisible', 'opacity-0');
+            modalFlightTooltip.classList.remove('opacity-100', 'visible');
+        });
+
 
         window.renderSimSummaryChart = function() {
             const timeMap = {};
@@ -2467,6 +2519,8 @@
 
                 const matchedBags = currentFilteredBags.filter(b => {
                     if (!b.timestamp) return false;
+                    if (isBagExcludedFromSim(b)) return false; // Exclude bags already at Chute
+                    
                     const d = new Date(b.timestamp);
                     const bMins = d.getHours() * 60 + d.getMinutes();
                     return bMins >= targetMins && bMins < (targetMins + durationMins);
@@ -2623,6 +2677,8 @@
                 
                 const matchedBags = currentFilteredBags.filter(b => {
                     if (!b.timestamp) return false;
+                    if (isBagExcludedFromSim(b)) return false; // Exclude bags already at Chute
+                    
                     const d = new Date(b.timestamp);
                     const bMins = d.getHours() * 60 + d.getMinutes();
                     return bMins >= targetMins && bMins < (targetMins + durationMins);
