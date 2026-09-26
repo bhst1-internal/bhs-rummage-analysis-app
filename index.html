@@ -750,6 +750,20 @@
         ];
 
         // --- NEW STANDARDIZED DATE & TIME UTILS ---
+        function formatDecimalToHHmm(decimalHours) {
+            if (decimalHours === null || decimalHours === undefined || isNaN(decimalHours)) return '-';
+            const isNegative = decimalHours < 0;
+            const absHours = Math.abs(decimalHours);
+            let h = Math.floor(absHours);
+            let m = Math.round((absHours - h) * 60);
+            if (m === 60) {
+                h += 1;
+                m = 0;
+            }
+            const sign = isNegative ? '-' : '';
+            return `${sign}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
         function normalizeDate(val) {
             if (val === undefined || val === null || val === '' || val === '-') return null;
             if (val instanceof Date) return val;
