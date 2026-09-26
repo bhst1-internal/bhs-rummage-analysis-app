@@ -4,7 +4,6 @@
 	<link rel="manifest" href="manifest.json">
 	<meta name="theme-color" content="#1f2937">
 	<link rel="apple-touch-icon" href="icon-192.png">
-    <!-- Replaced deprecated apple tag with modern mobile-web-app tag -->
 	<meta name="mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta charset="UTF-8">
@@ -13,6 +12,9 @@
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { corePlugins: { preflight: true } }; // Suppresses the Tailwind production warning in console
+    </script>
     <!-- SheetJS for Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Plotly.js for Charts -->
@@ -3237,29 +3239,36 @@
         // NEW MULTI-DATASET MERGING LOGIC (data.parquet & chute.parquet)
         // -------------------------------------------------------------
 
-        // Helper: Fetch and Parse Parquet natively using hyparquet (No WASM)
+        // Helper: Fetch and Parse Parquet natively using hyparquet via jsdelivr +esm
         async function parseParquet(url) {
             try {
-                // Dynamically import pure javascript parquet reader
-                const { parquetReadObjects } = await import('https://cdn.jsdelivr.net/npm/hyparquet@1.28.1/src/hyparquet.min.js');
+                // By using +esm, jsDelivr automatically bundles the module and provides the named exports correctly
+                const { parquetRead } = await import('https://cdn.jsdelivr.net/npm/hyparquet/+esm');
                 
-                // Fetch the file as an ArrayBuffer
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const arrayBuffer = await response.arrayBuffer();
                 
-                // Wrap the ArrayBuffer in a file-like object that hyparquet expects
-                const file = {
+                // Wrap ArrayBuffer into hyparquet's expected AsyncBuffer structure
+                const asyncBuffer = {
                     byteLength: arrayBuffer.byteLength,
                     slice: (start, end) => arrayBuffer.slice(start, end)
                 };
                 
-                // Read and extract data into row-based JSON arrays
-                const data = await parquetReadObjects({ file });
-                return data;
+                // Read and extract data into a Promise that resolves to an array of row objects
+                return new Promise((resolve, reject) => {
+                    try {
+                        parquetRead({
+                            file: asyncBuffer,
+                            onComplete: (data) => resolve(data)
+                        });
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
             } catch (err) {
                 console.warn(`Could not load ${url}. Proceeding without it...`, err);
-                return []; // Return empty if missing so dashboard doesn't crash completely
+                return []; 
             }
         }
 
@@ -3287,6 +3296,9 @@
         function buildChuteLookup(chuteData) {
             const lookup = new Map();
             
+            if (!chuteData || chuteData.length === 0) return lookup;
+            
+            // Provide exact column names mapped to the row arrays if hyparquet returns arrays instead of objects
             chuteData.forEach(row => {
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
                 if (bagTag === '-' || !bagTag) return;
@@ -3313,6 +3325,8 @@
 
         // 2. Merge the targeted "First Chute" into the Main Data for "OPEN" bags
         function mergeChuteData(mainData, chuteLookup) {
+            if (!mainData || mainData.length === 0) return [];
+            
             return mainData.map(row => {
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
                 const reason = String(getRawValue(row, ['REASON', 'RUMMAGE REASON'])).trim().toUpperCase();
