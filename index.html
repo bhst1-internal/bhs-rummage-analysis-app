@@ -13,7 +13,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        tailwind.config = { corePlugins: { preflight: true } }; // Suppresses the Tailwind production warning in console
+        tailwind.config = { corePlugins: { preflight: true } };
     </script>
     <!-- SheetJS for Excel -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -749,1281 +749,6 @@
             "SQ115", "SQ121", "SQ125", "SQ127", "SV829", "SV835", "SV841", "UL315"
         ];
 
-        // --- TIMELINE DATA TABLE & CONTROLS LOGIC ---
-        let isTimelineTableExpanded = false;
-
-        function toggleDataTable() {
-            const section = document.getElementById('timelineSection');
-            const modalBody = document.getElementById('timeline-modal-body');
-            const overlay = document.getElementById('timeline-expanded-modal');
-            const btn = document.getElementById('dataTableBtn');
-            const tableContainer = document.getElementById('timelineTableContainer');
-            const chartDiv = document.getElementById('chart-timeline');
-
-            if (!isTimelineTableExpanded) {
-                // Expand: Move to Modal
-                let placeholder = document.getElementById('timeline-placeholder');
-                if (!placeholder) {
-                    placeholder = document.createElement('div');
-                    placeholder.id = 'timeline-placeholder';
-                    placeholder.className = "w-full transition-all";
-                }
-                placeholder.style.height = section.offsetHeight + 'px';
-                placeholder.style.display = 'block';
-                section.parentNode.insertBefore(placeholder, section);
-                
-                modalBody.appendChild(section);
-                
-                // Adjust styles for modal view
-                section.classList.remove('rounded-lg', 'shadow', 'border-t-4');
-                section.classList.add('rounded-xl', 'shadow-2xl', 'border-t-[6px]', 'min-h-full');
-                
-                // Make chart slightly taller in expanded view
-                chartDiv.classList.remove('h-[400px]');
-                chartDiv.classList.add('h-[450px]');
-
-                tableContainer.style.display = 'block'; // Show table
-                overlay.classList.remove('hidden');     // Show Modal
-                
-                // Update Button to Red Close State
-                btn.innerHTML = `
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
-                    Minimize View`;
-                btn.style.background = '#fee2e2';
-                btn.style.borderColor = '#ef4444';
-                btn.style.color = '#b91c1c';
-
-                // Resize chart to new width/height
-                setTimeout(() => { Plotly.Plots.resize('chart-timeline'); }, 150);
-            } else {
-                // Collapse: Move back to Dashboard
-                const placeholder = document.getElementById('timeline-placeholder');
-                if (placeholder && placeholder.parentNode) {
-                    placeholder.parentNode.insertBefore(section, placeholder);
-                    placeholder.style.display = 'none';
-                }
-                
-                // Revert styles
-                section.classList.add('rounded-lg', 'shadow', 'border-t-4');
-                section.classList.remove('rounded-xl', 'shadow-2xl', 'border-t-[6px]', 'min-h-full');
-                
-                chartDiv.classList.add('h-[400px]');
-                chartDiv.classList.remove('h-[450px]');
-
-                overlay.classList.add('hidden');
-                tableContainer.style.display = 'none'; // Hide table
-                
-                // Revert Button to Neutral Gray State
-                btn.innerHTML = `Data Table`;
-                btn.style.background = '#ffffff';
-                btn.style.borderColor = '#d1d5db';
-                btn.style.color = '#4b5563';
-
-                // Resize chart back to normal dashboard limits
-                setTimeout(() => { Plotly.Plots.resize('chart-timeline'); }, 150);
-            }
-            isTimelineTableExpanded = !isTimelineTableExpanded;
-        }
-
-        function saveTimelineAsJPEG() {
-            const section = document.getElementById('timelineSection');
-            const btnGroup = section.querySelector('.flex.items-center.space-x-3');
-            const tableScrollDiv = section.querySelector('.overflow-x-auto.sim-scroll');
-            
-            const modalBody = document.getElementById('timeline-modal-body');
-            const modalWrapper = document.getElementById('timeline-expanded-modal').firstElementChild;
-
-            // Temporarily hide buttons from screenshot
-            const btnOrigDisplay = btnGroup.style.display;
-            btnGroup.style.display = 'none';
-
-            // Save original styles before overriding for full capture
-            const origSectionWidth = section.style.width;
-            const origTableOverflow = tableScrollDiv ? tableScrollDiv.style.overflowX : '';
-            const origModalBodyOverflow = modalBody.style.overflow;
-            const origModalWrapperOverflow = modalWrapper.style.overflow;
-
-            // Expand everything so html2canvas sees it without clipping
-            if (isTimelineTableExpanded) {
-                if (tableScrollDiv) tableScrollDiv.style.overflowX = 'visible';
-                modalBody.style.overflow = 'visible';
-                modalWrapper.style.overflow = 'visible';
-                
-                const fullWidth = tableScrollDiv ? Math.max(section.offsetWidth, tableScrollDiv.scrollWidth) : section.offsetWidth;
-                section.style.width = fullWidth + 'px';
-            }
-
-            html2canvas(section, {
-                scale: 2, 
-                useCORS: true,
-                backgroundColor: '#ffffff'
-            }).then(canvas => {
-                // Restore UI immediately
-                btnGroup.style.display = btnOrigDisplay;
-                if (isTimelineTableExpanded) {
-                    if (tableScrollDiv) tableScrollDiv.style.overflowX = origTableOverflow;
-                    modalBody.style.overflow = origModalBodyOverflow;
-                    modalWrapper.style.overflow = origModalWrapperOverflow;
-                    section.style.width = origSectionWidth;
-                }
-
-                // Download image
-                const link = document.createElement('a');
-                link.download = `Operational_Timeline_Export_${new Date().getTime()}.jpeg`;
-                link.href = canvas.toDataURL('image/jpeg', 0.9);
-                link.click();
-            }).catch(err => {
-                console.error('Error generating image:', err);
-                
-                // Fallback restore
-                btnGroup.style.display = btnOrigDisplay;
-                if (isTimelineTableExpanded) {
-                    if (tableScrollDiv) tableScrollDiv.style.overflowX = origTableOverflow;
-                    modalBody.style.overflow = origModalBodyOverflow;
-                    modalWrapper.style.overflow = origModalWrapperOverflow;
-                    section.style.width = origSectionWidth;
-                }
-                alert('Failed to generate image. Please check console for details.');
-            });
-        }
-
-        function renderTimelineTable(bags) {
-            const thead = document.getElementById('timelineThead');
-            const tbody = document.getElementById('timelineTbody');
-
-            if (bags.length === 0) {
-                thead.innerHTML = '';
-                tbody.innerHTML = `<tr><td colspan="100%" class="py-8 text-gray-400 italic text-center">No timeline data available.</td></tr>`;
-                return;
-            }
-
-            const interval = document.getElementById('slicer-interval').value;
-            const tracesMap = new Map();
-            const globalTimeMap = new Map();
-            const uniqueDates = new Set(); 
-
-            bags.forEach(bag => {
-                if (!bag.timestamp) return;
-
-                let binnedTime;
-                const dt = new Date(bag.timestamp);
-                
-                if (interval === 'daily') {
-                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
-                } else if (interval === 'hourly') {
-                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), 0, 0).getTime();
-                } else if (interval === '15min') {
-                    const min = dt.getMinutes();
-                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), min - (min % 15), 0).getTime();
-                } else {
-                    binnedTime = bag.timestamp;
-                }
-
-                globalTimeMap.set(binnedTime, (globalTimeMap.get(binnedTime) || 0) + 1);
-                uniqueDates.add(`${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`);
-
-                const traceKey = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
-                if (!tracesMap.has(traceKey)) tracesMap.set(traceKey, new Map());
-                
-                const timeMap = tracesMap.get(traceKey);
-                timeMap.set(binnedTime, (timeMap.get(binnedTime) || 0) + 1);
-            });
-
-            const isSingleDate = uniqueDates.size <= 1;
-
-            const definedOrder = ['MA', 'MB', 'MC1', 'MC2', 'MS1', 'MS2'];
-            const sortedAreas = Array.from(tracesMap.keys()).sort((a, b) => {
-                let idxA = definedOrder.indexOf(a);
-                let idxB = definedOrder.indexOf(b);
-                if (idxA === -1) idxA = 999;
-                if (idxB === -1) idxB = 999;
-                if (idxA !== idxB) return idxA - idxB;
-                return a.localeCompare(b);
-            });
-            
-            const sortedTimes = Array.from(globalTimeMap.keys()).sort((a, b) => a - b);
-
-            // 1. Build Transposed Table Header
-            let theadHTML = '<tr>';
-            theadHTML += '<th class="sticky left-0 top-0 z-30 bg-gray-50 text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider px-4 py-3 border-b border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] text-left whitespace-nowrap min-w-[110px] w-[110px]">Rummage Area</th>';
-            
-            sortedTimes.forEach(t => {
-                const dt = new Date(t);
-                let timeStr = '';
-                
-                if (interval === 'daily') {
-                    timeStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
-                } else {
-                    const timeOnly = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-                    if (isSingleDate) {
-                        timeStr = timeOnly;
-                    } else {
-                        timeStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')} <br> ${timeOnly}`;
-                    }
-                }
-                
-                theadHTML += `<th class="sticky top-0 z-20 bg-gray-50 text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider px-2 py-3 border-b border-gray-200 shadow-sm text-center whitespace-nowrap min-w-[60px] w-[60px]">${timeStr}</th>`;
-            });
-            
-            theadHTML += '<th class="sticky right-0 top-0 z-30 bg-blue-50 text-[0.65rem] font-extrabold text-blue-700 uppercase tracking-wider px-3 py-3 border-b border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] text-center min-w-[70px] w-[70px]">Total</th>';
-            theadHTML += '</tr>';
-            thead.innerHTML = theadHTML;
-
-            // 2. Build Transposed Table Body
-            let tbodyHTML = '';
-            
-            sortedAreas.forEach(area => {
-                tbodyHTML += `<tr class="hover:bg-gray-50 transition-colors">`;
-                
-                // First sticky column (Area)
-                tbodyHTML += `<td class="sticky left-0 z-10 bg-white py-2 px-4 text-[0.7rem] font-bold text-gray-700 text-left border-b border-r border-gray-100 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[110px] w-[110px]">${area}</td>`;
-                
-                let rowTotal = 0;
-                sortedTimes.forEach(t => {
-                    const count = tracesMap.get(area).get(t) || 0;
-                    rowTotal += count;
-                    tbodyHTML += `<td class="py-2 px-2 text-[0.7rem] font-semibold text-gray-600 text-center border-b border-gray-100 min-w-[60px] w-[60px]">${count > 0 ? count : '-'}</td>`;
-                });
-                
-                // Last sticky column (Row Total)
-                tbodyHTML += `<td class="sticky right-0 z-10 bg-blue-50/50 py-2 px-3 text-[0.75rem] font-extrabold text-blue-600 text-center border-b border-l border-gray-100 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[70px] w-[70px]">${rowTotal}</td>`;
-                tbodyHTML += `</tr>`;
-            });
-            
-            // 3. Final Total Row
-            tbodyHTML += `<tr class="bg-gray-50">`;
-            tbodyHTML += `<td class="sticky left-0 z-10 bg-gray-100 py-3 px-4 text-[0.7rem] font-extrabold text-gray-800 text-left border-t border-r border-gray-200 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[110px] w-[110px]">TOTAL BAGS</td>`;
-            
-            let grandTotal = 0;
-            sortedTimes.forEach(t => {
-                const count = globalTimeMap.get(t) || 0;
-                grandTotal += count;
-                tbodyHTML += `<td class="py-3 px-2 text-[0.75rem] font-extrabold text-gray-800 text-center border-t border-gray-200 bg-gray-50 min-w-[60px] w-[60px]">${count > 0 ? count : '-'}</td>`;
-            });
-            
-            tbodyHTML += `<td class="sticky right-0 z-10 bg-blue-100/50 py-3 px-3 text-[0.8rem] font-black text-blue-700 text-center border-t border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[70px] w-[70px]">${grandTotal}</td>`;
-            tbodyHTML += `</tr>`;
-
-            tbody.innerHTML = tbodyHTML;
-        }
-        // -------------------------------------------------------------
-
-        function formatDecimalToHHmm(decimalHours) {
-            if (decimalHours === null || decimalHours === undefined || isNaN(decimalHours)) return '-';
-            const isNegative = decimalHours < 0;
-            const absHours = Math.abs(decimalHours);
-            let h = Math.floor(absHours);
-            let m = Math.round((absHours - h) * 60);
-            if (m === 60) {
-                h += 1;
-                m = 0;
-            }
-            const sign = isNegative ? '-' : '';
-            return `${sign}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        }
-
-        function setupDropdownToggle(btnId, menuId) {
-            const btn = document.getElementById(btnId);
-            const menu = document.getElementById(menuId);
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.querySelectorAll('.multi-select-menu').forEach(m => {
-                    if (m.id !== menuId) m.classList.add('hidden');
-                });
-                document.getElementById('custom-flight-menu').classList.add('hidden');
-                menu.classList.toggle('hidden');
-            });
-            document.addEventListener('click', (e) => {
-                if (!menu.contains(e.target) && !btn.contains(e.target)) {
-                    menu.classList.add('hidden');
-                }
-            });
-        }
-
-        document.getElementById('btn-save-as').addEventListener('click', saveDashboardAsHTML);
-
-        function saveDashboardAsHTML() {
-            if (bagDataset.size === 0) {
-                alert("No dataset loaded to save.");
-                return;
-            }
-            
-            // Force collapse if expanded so DOM exports correctly natively
-            if (isTimelineTableExpanded) {
-                toggleDataTable(); 
-            }
-
-            const dataArray = Array.from(bagDataset.values());
-            const safeJson = JSON.stringify(dataArray).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
-
-            const clone = document.documentElement.cloneNode(true);
-
-            ['chart-timeline', 'chart-bar', 'chart-histogram', 'sim-summary-chart'].forEach(id => {
-                const el = clone.querySelector('#' + id);
-                if (el) el.innerHTML = '';
-            });
-
-            ['flight-options-list', 'menu-reason', 'menu-handler', 'menu-reclaim'].forEach(id => {
-                const el = clone.querySelector('#' + id);
-                if (el) el.innerHTML = '';
-            });
-
-            const tbody = clone.querySelector('#reclaim-tbody');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-gray-400 italic">Upload an Excel file to display unique bag details.</td></tr>';
-            }
-
-            ['loading-overlay', 'overlap-modal', 'trip-modal', 'opt-deploy-modal', 'reset-confirm-modal', 'sim-summary-modal', 'custom-flight-menu', 'timeline-expanded-modal'].forEach(id => {
-                const el = clone.querySelector('#' + id);
-                if (el) el.classList.add('hidden');
-            });
-
-            const tooltipContent = clone.querySelector('#table-tooltip-content');
-            if (tooltipContent) tooltipContent.innerHTML = '';
-
-            const scriptBlock = `<script id="embedded-data-store">window.PRELOADED_BHS_DATA = ${safeJson};<\/script>`;
-
-            const existingStore = clone.querySelector('#embedded-data-store');
-            if (existingStore) existingStore.remove();
-
-            const head = clone.querySelector('head');
-            if (head) {
-                head.insertAdjacentHTML('beforeend', scriptBlock);
-            }
-
-            const docHtml = "<!DOCTYPE html>\n" + clone.outerHTML;
-
-            const todayStr = new Date().toISOString().slice(0,10);
-            const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `BHS_Rummage_Dashboard_${todayStr}.html`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        function loadEmbeddedData(dataArray) {
-            bagDataset.clear();
-            dataArray.forEach(bag => {
-                bagDataset.set(bag.bagTagId, bag);
-            });
-
-            setDefaultDateFilters();
-            populateFilterDropdowns();
-
-            document.getElementById('btn-save-as').classList.remove('hidden');
-            document.getElementById('kpi-section').classList.remove('hidden');
-            document.getElementById('charts-section').classList.remove('hidden');
-
-            applyFiltersAndRender();
-        }
-
-        function setOptimizationState(state) {
-            isOptimized = state;
-            const btnOptToggle = document.getElementById('btn-optimize-toggle');
-            const btnResetSim = document.getElementById('btn-reset-sim');
-
-            if (state) {
-                if (btnOptToggle) {
-                    btnOptToggle.innerHTML = `OPTIMIZED`; 
-                    btnOptToggle.className = "px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-[0.65rem] font-bold rounded shadow-md flex items-center gap-1 transition-all border border-green-700 focus:outline-none";
-                }
-                if (btnResetSim) {
-                    btnResetSim.classList.remove('hidden');
-                }
-            } else {
-                if (btnOptToggle) {
-                    btnOptToggle.innerHTML = `Optimization !`; 
-                    btnOptToggle.className = "px-2.5 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-[0.65rem] font-bold rounded shadow-md flex items-center gap-1 transition-all border border-yellow-600 focus:outline-none";
-                }
-                if (btnResetSim) {
-                    btnResetSim.classList.add('hidden');
-                }
-            }
-        }
-
-        document.addEventListener('click', (e) => {
-            const btnOpt = e.target.closest('#btn-optimize-toggle');
-            if (btnOpt && !isOptimized) {
-                document.getElementById('opt-deploy-modal').classList.remove('hidden');
-            }
-
-            const btnReset = e.target.closest('#btn-reset-sim');
-            if (btnReset) {
-                document.getElementById('reset-confirm-modal').classList.remove('hidden');
-            }
-        });
-
-        document.getElementById('btn-cancel-reset').addEventListener('click', () => {
-            document.getElementById('reset-confirm-modal').classList.add('hidden');
-        });
-
-        document.getElementById('btn-confirm-reset').addEventListener('click', () => {
-            simEntries = []; 
-            triggerSimulation();
-            setOptimizationState(false); 
-            document.getElementById('reset-confirm-modal').classList.add('hidden');
-        });
-
-        document.getElementById('reset-confirm-modal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('reset-confirm-modal')) {
-                document.getElementById('reset-confirm-modal').classList.add('hidden');
-            }
-        });
-
-        document.getElementById('btn-cancel-deploy').addEventListener('click', () => {
-            document.getElementById('opt-deploy-modal').classList.add('hidden');
-        });
-
-        document.getElementById('btn-run-deploy').addEventListener('click', () => {
-            document.getElementById('opt-deploy-modal').classList.add('hidden');
-            try {
-                runAutoOptimization();
-                setOptimizationState(true); 
-            } catch(err) {
-                console.error("Optimization failed:", err);
-            }
-        });
-
-        function runAutoOptimization() {
-            simEntries = []; 
-            
-            const intervalType = document.getElementById('slicer-interval').value;
-            let durationMins = 60;
-            if (intervalType === '15min') durationMins = 15;
-            if (intervalType === 'daily') durationMins = 1440;
-
-            const bagsByTime = new Map();
-
-            currentFilteredBags.forEach(b => {
-                if (!b.timestamp) return;
-
-                const d = new Date(b.timestamp);
-                const bMins = d.getHours() * 60 + d.getMinutes();
-                const binMins = bMins - (bMins % durationMins);
-                
-                const h = Math.floor(binMins / 60);
-                const m = binMins % 60;
-                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-
-                if (!bagsByTime.has(timeStr)) {
-                    bagsByTime.set(timeStr, { MTB: 0, SAT: 0 });
-                }
-                
-                const cArea = (b.chute || '').toUpperCase();
-                if (cArea.startsWith('MC')) {
-                    bagsByTime.get(timeStr).SAT++;
-                } else {
-                    bagsByTime.get(timeStr).MTB++;
-                }
-            });
-
-            const lorryCap = 60; 
-            const trolleyCap = 40; 
-
-            bagsByTime.forEach((counts, timeStr) => {
-                const getFleetMath = (bagCount) => {
-                    let L = Math.floor(bagCount / lorryCap);
-                    let rem = bagCount % lorryCap;
-                    let T = 0;
-                    if (rem > trolleyCap) L++;
-                    else if (rem > 0) T++;
-                    return { L, T };
-                };
-
-                const mtb = getFleetMath(counts.MTB);
-                const sat = getFleetMath(counts.SAT);
-
-                const addAutoTransports = (type, cap, count) => {
-                    for(let i=0; i<count; i++) {
-                        const newId = Date.now().toString() + Math.floor(Math.random()*100000) + i;
-                        const sameTypeInputs = simEntries.filter(e => e.time === timeStr && e.type === type).length;
-                        simEntries.push({
-                            id: newId,
-                            time: timeStr,
-                            type: type,
-                            cap: cap,
-                            name: `${type} ${sameTypeInputs + 1} (${cap})`
-                        });
-                    }
-                };
-
-                addAutoTransports('Lorry', lorryCap, mtb.L + sat.L);
-                addAutoTransports('Trolley', trolleyCap, mtb.T + sat.T);
-            });
-
-            triggerSimulation();
-        }
-
-        const simSummaryModal = document.getElementById('sim-summary-modal');
-        
-        if (simSummaryModal) {
-            document.getElementById('close-sim-summary-modal').addEventListener('click', () => {
-                simSummaryModal.classList.add('hidden');
-            });
-            
-            simSummaryModal.addEventListener('click', (e) => {
-                if (e.target === simSummaryModal) simSummaryModal.classList.add('hidden');
-            });
-
-            const simChartTypeSelect = document.getElementById('sim-chart-type-select');
-            if (simChartTypeSelect) {
-                simChartTypeSelect.addEventListener('change', (e) => {
-                    simChartType = e.target.value; 
-                    if (!simSummaryModal.classList.contains('hidden')) {
-                        window.renderSimSummaryChart();
-                    }
-                });
-            }
-        }
-
-        window.openSimSummaryModal = function() {
-            if (generatedTrips.length === 0) {
-                alert("No simulation data available. Please add transports first.");
-                return;
-            }
-
-            let blockBags = [];
-            generatedTrips.forEach(t => { if(t.bags) blockBags.push(...t.bags); });
-            
-            let dates = new Set(blockBags.map(b => b.dateOnlyISO).filter(d => d));
-            let dateDisplay = "Multiple Dates";
-            let dateArr = Array.from(dates);
-            if (dateArr.length === 1 && dateArr[0]) {
-                let parts = dateArr[0].split('-');
-                if(parts.length === 3) dateDisplay = `${parts[2]}/${parts[1]}/${parts[0]}`;
-            }
-            
-            let headerReclaimName = filterState.reclaim.includes('ALL') ? 'All Areas' : filterState.reclaim.join(', ');
-
-            let totalLorry = 0;
-            let totalTrolley = 0;
-            let totalMins = 0;
-            let tripCount = 0;
-
-            generatedTrips.forEach(t => {
-                if (t.type === 'Lorry') totalLorry += (t.bags ? t.bags.length : 0);
-                if (t.type === 'Trolley') totalTrolley += (t.bags ? t.bags.length : 0);
-                totalMins += (t.mins || 0);
-                tripCount++;
-            });
-
-            let avgWorkload = tripCount > 0 ? Math.round(totalMins / tripCount) : 0;
-
-            document.getElementById('sim-sum-date').textContent = dateDisplay;
-            document.getElementById('sim-sum-area').textContent = headerReclaimName;
-            document.getElementById('sim-sum-bags').textContent = (totalLorry + totalTrolley).toLocaleString();
-            document.getElementById('sim-sum-lorry').textContent = totalLorry.toLocaleString();
-            document.getElementById('sim-sum-trolley').textContent = totalTrolley.toLocaleString();
-            document.getElementById('sim-sum-avg-workload').textContent = avgWorkload + 'm';
-
-            const tbody = document.getElementById('sim-summary-tbody');
-            const sortedTrips = [...generatedTrips].sort((a,b) => a.time.localeCompare(b.time) || a.type.localeCompare(b.type));
-            
-            tbody.innerHTML = sortedTrips.map(t => {
-                const isLorry = t.type === 'Lorry';
-                const typeTextColor = isLorry ? 'text-blue-600' : 'textgreen-600';
-                const cleanName = t.name.split(' (')[0]; 
-                
-                let flightChuteData = {};
-                let sumHour = 0;
-                let validCount = 0;
-                
-                if (t.bags) {
-                    t.bags.forEach(b => {
-                        if (b.flight && b.flight !== '-') {
-                            let key = `${b.flight}_${b.chute}`;
-                            if (!flightChuteData[key]) {
-                                flightChuteData[key] = { flight: b.flight, chute: b.chute, count: 0 };
-                            }
-                            flightChuteData[key].count++;
-                        }
-                        
-                        if (b.hourBeforeStdNum !== null) {
-                            sumHour += b.hourBeforeStdNum;
-                            validCount++;
-                        }
-                    });
-                }
-                
-                let flightStr = Object.values(flightChuteData).map(data => {
-                    return `<span class="text-blue-600 hover:text-blue-800 border-b border-dashed border-blue-400 cursor-help modal-flight-hover" data-flight="${data.flight}" data-chute="${data.chute}" data-count="${data.count}">${data.flight}</span>`;
-                }).join('<br>');
-                
-                if (!flightStr) flightStr = '-';
-                
-                let avgStdStr = '-';
-                let hourTextColor = 'text-gray-600';
-                if (validCount > 0) {
-                    let avgNum = sumHour / validCount;
-                    avgStdStr = formatDecimalToHHmm(avgNum);
-                    if (avgNum < 0) hourTextColor = 'text-red-600 font-bold';
-                    else if (avgNum <= 1) hourTextColor = 'text-yellow-600 font-bold';
-                    else hourTextColor = 'text-green-600 font-bold';
-                }
-
-                return `
-                <tr class="hover:bg-gray-50 transition border-b border-gray-100">
-                    <td class="py-2.5 px-2 text-center font-mono font-bold text-gray-800 text-sm whitespace-nowrap">${t.time}</td>
-                    <td class="py-2.5 px-2 text-center font-bold ${typeTextColor} text-sm whitespace-nowrap">${cleanName}</td>
-                    <td class="py-2.5 px-2 text-center font-bold text-gray-700 text-xs">${flightStr}</td>
-                    <td class="py-2.5 px-2 text-center font-mono text-gray-600 text-sm">${t.cap}</td>
-                    <td class="py-2.5 px-2 text-center font-bold text-gray-800 text-sm">${t.totalTrips || 0}</td>
-                    <td class="py-2.5 px-2 text-center font-bold text-blue-600 text-sm">${t.bags ? t.bags.length : 0}</td>
-                    <td class="py-2.5 px-2 text-center font-mono ${hourTextColor} text-sm">${avgStdStr}</td>
-                    <td class="py-2.5 px-2 text-center font-mono font-bold text-gray-700 text-sm">${Math.round(t.mins || 0)}</td>
-                </tr>
-            `}).join('');
-
-            simSummaryModal.classList.remove('hidden');
-
-            setTimeout(() => {
-                window.renderSimSummaryChart();
-                Plotly.Plots.resize('sim-summary-chart');
-            }, 350);
-        };
-
-        const simSummaryTbody = document.getElementById('sim-summary-tbody');
-        const modalFlightTooltip = document.getElementById('modal-flight-tooltip');
-        const modalFlightTooltipContent = document.getElementById('modal-flight-tooltip-content');
-
-        simSummaryTbody.addEventListener('mouseover', (e) => {
-            const el = e.target.closest('.modal-flight-hover');
-            if (!el) return;
-            
-            const flt = el.getAttribute('data-flight');
-            const chute = el.getAttribute('data-chute');
-            const count = el.getAttribute('data-count');
-            
-            modalFlightTooltipContent.innerHTML = `
-                <div class="mb-1"><span class="text-gray-400">Flight:</span> <span class="font-bold text-white ml-1">${flt}</span></div>
-                <div class="mb-1"><span class="text-gray-400">Chute:</span> <span class="font-bold text-white ml-1">${chute}</span></div>
-                <div><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-blue-400 ml-1">${count}</span></div>
-            `;
-            
-            modalFlightTooltip.classList.remove('invisible', 'opacity-0');
-            modalFlightTooltip.classList.add('opacity-100', 'visible');
-        });
-
-        simSummaryTbody.addEventListener('mousemove', (e) => {
-            if (!modalFlightTooltip.classList.contains('invisible')) {
-                modalFlightTooltip.style.left = e.clientX + 'px';
-                modalFlightTooltip.style.top = e.clientY + 'px';
-            }
-        });
-
-        simSummaryTbody.addEventListener('mouseout', (e) => {
-            const el = e.target.closest('.modal-flight-hover');
-            if (!el) return;
-            modalFlightTooltip.classList.add('invisible', 'opacity-0');
-            modalFlightTooltip.classList.remove('opacity-100', 'visible');
-        });
-
-
-        window.renderSimSummaryChart = function() {
-            const timeMap = {};
-            const hours24_even = Array.from({length: 12}, (_, i) => `${String(i * 2).padStart(2, '0')}:00`);
-            const hours24 = Array.from({length: 24}, (_, i) => `${String(i).padStart(2, '0')}:00`);
-            
-            generatedTrips.forEach(t => {
-                if(!timeMap[t.time]) timeMap[t.time] = { Lorry: 0, Trolley: 0, LorryCount: 0, TrolleyCount: 0 };
-                
-                // Add Bags
-                timeMap[t.time][t.type] += t.bags ? t.bags.length : 0;
-                
-                // Count Transports
-                if(t.type === 'Lorry') timeMap[t.time].LorryCount++;
-                if(t.type === 'Trolley') timeMap[t.time].TrolleyCount++;
-            });
-            
-            hours24.forEach(h => {
-                if(!timeMap[h]) timeMap[h] = { Lorry: 0, Trolley: 0, LorryCount: 0, TrolleyCount: 0 };
-            });
-
-            const times = Object.keys(timeMap).sort();
-            const lorryBags = times.map(time => timeMap[time].Lorry);
-            const trolleyBags = times.map(time => timeMap[time].Trolley);
-            const lorryCounts = times.map(time => timeMap[time].LorryCount);
-            const trolleyCounts = times.map(time => timeMap[time].TrolleyCount);
-            
-            let trace1, trace2;
-            
-            if (simChartType === 'bar') {
-                trace1 = { 
-                    x: times, y: lorryBags, name: 'Lorry', 
-                    type: 'bar', 
-                    marker: { color: 'rgba(59, 130, 246, 0.5)', line: { color: 'rgb(59, 130, 246)', width: 1.5 } },
-                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
-                };
-                trace2 = { 
-                    x: times, y: trolleyBags, name: 'Trolley', 
-                    type: 'bar', 
-                    marker: { color: 'rgba(16, 185, 129, 0.5)', line: { color: 'rgb(16, 185, 129)', width: 1.5 } },
-                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
-                };
-            } else {
-                trace1 = { 
-                    x: times, y: lorryBags, name: 'Lorry', 
-                    type: 'scatter', mode: 'lines', stackgroup: 'one', 
-                    line: { shape: 'spline', smoothing: 0.4, color: 'rgba(59, 130, 246, 0.8)', width: 2 },
-                    fillcolor: 'rgba(59, 130, 246, 0.5)',
-                    marker: { color: 'rgba(59, 130, 246, 0.8)' },
-                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
-                };
-                trace2 = { 
-                    x: times, y: trolleyBags, name: 'Trolley', 
-                    type: 'scatter', mode: 'lines', stackgroup: 'one', 
-                    line: { shape: 'spline', smoothing: 0.4, color: 'rgba(16, 185, 129, 0.8)', width: 2 },
-                    fillcolor: 'rgba(16, 185, 129, 0.5)',
-                    marker: { color: 'rgba(16, 185, 129, 0.8)' },
-                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
-                };
-            }
-
-            const lorryText = [];
-            const trolleyText = [];
-            const lorryMarkerSizes = [];
-            const trolleyMarkerSizes = [];
-            
-            for (let i = 0; i < times.length; i++) {
-                let l = lorryCounts[i];
-                let t = trolleyCounts[i];
-                
-                if (l > 0) {
-                    lorryText.push(`<b>${l}</b>`);
-                    lorryMarkerSizes.push(18); 
-                } else {
-                    lorryText.push('');
-                    lorryMarkerSizes.push(0); 
-                }
-                
-                if (t > 0 && t !== l) {
-                    trolleyText.push(`<b>${t}</b>`);
-                    trolleyMarkerSizes.push(18); 
-                } else {
-                    trolleyText.push('');
-                    trolleyMarkerSizes.push(0); 
-                }
-            }
-
-            const trace3 = {
-                x: times, y: lorryCounts, name: 'Lorry (Transport)',
-                type: 'scatter', mode: 'lines+markers+text', yaxis: 'y2',
-                text: lorryText,
-                textposition: 'middle center',
-                textfont: { size: 10, color: 'rgb(59, 130, 246)' },
-                marker: { 
-                    size: lorryMarkerSizes, 
-                    color: '#ffffff', 
-                    line: { color: 'rgb(59, 130, 246)', width: 2 } 
-                },
-                line: { color: 'rgba(59, 130, 246, 0.8)', width: 2 },
-                hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`,
-                showlegend: false,
-                cliponaxis: false
-            };
-            
-            const trace4 = {
-                x: times, y: trolleyCounts, name: 'Trolley (Transport)',
-                type: 'scatter', mode: 'lines+markers+text', yaxis: 'y2',
-                text: trolleyText,
-                textposition: 'middle center',
-                textfont: { size: 10, color: 'rgb(16, 185, 129)' },
-                marker: { 
-                    size: trolleyMarkerSizes, 
-                    color: '#ffffff', 
-                    line: { color: 'rgb(16, 185, 129)', width: 2 } 
-                },
-                line: { color: 'rgba(16, 185, 129, 0.8)', width: 2 },
-                hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`,
-                showlegend: false,
-                cliponaxis: false
-            };
-
-            const layout = { 
-                barmode: 'stack',
-                margin: { t: 20, l: 60, r: 20, b: 40 }, 
-                paper_bgcolor: '#f9fafb',
-                plot_bgcolor: '#f9fafb', 
-                xaxis: { 
-                    title: '', 
-                    tickvals: hours24_even, 
-                    ticktext: hours24_even,
-                    tickfont: { size: 12 }, 
-                    tickangle: 0,
-                    range: simChartType === 'bar' ? [-0.5, 23.5] : [0, 23]
-                },
-                yaxis: { 
-                    title: { text: 'Bags Processed', standoff: 15 },
-                    tickfont: { size: 11 },
-                    domain: [0, 0.65]
-                },
-                yaxis2: { 
-                    title: { text: 'Transports', standoff: 15 },
-                    tickfont: { size: 11 },
-                    domain: [0.75, 1], 
-                    tickformat: 'd',   
-                    rangemode: 'tozero'
-                },
-                legend: { orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right', x: 1 },
-                hovermode: 'x unified',
-                hoverlabel: {
-                    bgcolor: '#1f2937',     
-                    bordercolor: '#374151', 
-                    namelength: -1,         
-                    align: 'left',
-                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
-                }
-            };
-
-            Plotly.react('sim-summary-chart', [trace1, trace2, trace3, trace4], layout, PLOTLY_CONFIG);
-        }
-
-        const btnExportSim = document.getElementById('btn-export-sim');
-        if (btnExportSim) {
-            btnExportSim.addEventListener('click', () => {
-                if(generatedTrips.length === 0) return alert('No simulation data to export.');
-                
-                const exportData = generatedTrips.map(t => ({
-                    'Time': t.time,
-                    'Transport Name': t.name,
-                    'Capacity': t.cap,
-                    'Loaded Bags': t.bags ? t.bags.length : 0,
-                    'Total Trips': t.totalTrips || 0,
-                    'Workload (Mins)': Math.round(t.mins || 0)
-                }));
-
-                const ws = XLSX.utils.json_to_sheet(exportData);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Sim_Summary");
-                XLSX.writeFile(wb, "Simulation_Summary_Export.xlsx");
-            });
-        }
-
-        document.querySelectorAll('.export-chart-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const targetId = e.currentTarget.getAttribute('data-target');
-                const chartDiv = document.getElementById(targetId);
-                
-                if (chartDiv && chartDiv.data && chartDiv.data.length > 0) {
-                    Plotly.downloadImage(chartDiv, {
-                        format: 'jpeg',
-                        width: chartDiv.clientWidth,
-                        height: chartDiv.clientHeight,
-                        filename: `${targetId}_export`,
-                        scale: 2
-                    });
-                } else {
-                    alert('No chart data available to export.');
-                }
-            });
-        });
-
-        const btnOverlapDetails = document.getElementById('btn-overlap-details');
-        const overlapModal = document.getElementById('overlap-modal');
-        const closeOverlapModal = document.getElementById('close-overlap-modal');
-
-        btnOverlapDetails.addEventListener('click', () => overlapModal.classList.remove('hidden'));
-        closeOverlapModal.addEventListener('click', () => overlapModal.classList.add('hidden'));
-        overlapModal.addEventListener('click', (e) => {
-            if (e.target === overlapModal) overlapModal.classList.add('hidden');
-        });
-
-        const tripModal = document.getElementById('trip-modal');
-        document.getElementById('close-trip-modal').addEventListener('click', () => tripModal.classList.add('hidden'));
-        tripModal.addEventListener('click', (e) => {
-            if (e.target === tripModal) tripModal.classList.add('hidden');
-        });
-
-        let currentOpenTripId = null;
-        
-        document.getElementById('btn-delete-trip').addEventListener('click', () => {
-            if (currentOpenTripId) {
-                simEntries = simEntries.filter(e => e.id !== currentOpenTripId);
-                tripModal.classList.add('hidden');
-                triggerSimulation();
-                setOptimizationState(false); 
-            }
-        });
-
-        window.openTripModal = function(tripId) {
-            const entry = generatedTrips.find(t => t.id === tripId);
-            if (!entry) return;
-            
-            currentOpenTripId = tripId;
-            document.getElementById('trip-modal-title').innerHTML = `Transport Details: <span class="text-blue-600">${entry.name}</span> at ${entry.time}`;
-            
-            const grouped = {};
-            (entry.bags || []).forEach(b => {
-                const key = `${b.flight}::${b.chute}`;
-                if (!grouped[key]) {
-                    grouped[key] = { flight: b.flight, chute: b.chute, sumHour: 0, validCount: 0, count: 0 };
-                }
-                grouped[key].count++;
-                if (b.hourBeforeStdNum !== null) {
-                    grouped[key].sumHour += b.hourBeforeStdNum;
-                    grouped[key].validCount++;
-                }
-            });
-
-            const tbody = document.getElementById('trip-modal-body');
-            
-            if (Object.keys(grouped).length > 0) {
-                tbody.innerHTML = Object.values(grouped).sort((a,b) => b.count - a.count).map(g => {
-                    let avgStr = '-';
-                    let hourTextColor = 'text-gray-600';
-                    if (g.validCount > 0) {
-                        let avgNum = g.sumHour / g.validCount;
-                        avgStr = formatDecimalToHHmm(avgNum);
-                        if (avgNum < 0) hourTextColor = 'text-red-600 font-bold';
-                        else if (avgNum <= 1) hourTextColor = 'text-yellow-600 font-bold';
-                        else hourTextColor = 'text-green-600 font-bold';
-                    }
-                    return `
-                    <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
-                        <td class="py-2 px-2 text-sm font-bold text-gray-800">${g.flight}</td>
-                        <td class="py-2 px-2 text-sm text-center font-mono font-bold text-blue-600">${g.count}</td>
-                        <td class="py-2 px-2 text-sm text-center text-gray-600">${g.chute}</td>
-                        <td class="py-2 px-2 text-sm text-center font-mono ${hourTextColor}">${avgStr}</td>
-                    </tr>
-                `}).join('');
-            } else {
-                tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-gray-400 italic">No bags assigned to this transport.</td></tr>`;
-            }
-            
-            document.getElementById('trip-modal-total').innerHTML = `Processed: <b>${entry.bags.length}</b> <span class="mx-2 text-gray-300">|</span> Trips: <b>${entry.totalTrips}</b> <span class="mx-2 text-gray-300">|</span> Cap: <b>${entry.cap}/trip</b>`;
-            tripModal.classList.remove('hidden');
-        };
-
-        const tableCustomTooltip = document.getElementById('table-custom-tooltip');
-        const tableTooltipContent = document.getElementById('table-tooltip-content');
-        const reclaimTbody = document.getElementById('reclaim-tbody');
-
-        reclaimTbody.addEventListener('mouseover', (e) => {
-            const cell = e.target.closest('.flight-cell');
-            if (!cell) return;
-
-            const flt = cell.getAttribute('data-flight');
-            const std = cell.getAttribute('data-std');
-            const disp = cell.getAttribute('data-dispatch');
-            const chute = cell.getAttribute('data-chute');
-            const gh = cell.getAttribute('data-gh');
-            
-            let assignment = 'UNKNOWN';
-            const cup = chute.toUpperCase();
-            if (cup.startsWith('MA') || cup.startsWith('MB')) assignment = 'MTB';
-            else if (cup.startsWith('MC1') || cup.startsWith('MC2')) assignment = 'SAT';
-
-            tableTooltipContent.innerHTML = `
-                <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">Flight Details: <span class="text-blue-400">${flt}</span></div>
-                <div class="mb-1"><span class="text-gray-400">STD:</span> <span class="font-bold text-white ml-1">${stripSecondsFromDate(std)}</span></div>
-                <div class="mb-1"><span class="text-gray-400">Dispatch Time:</span> <span class="font-bold text-white ml-1">${disp}</span></div>
-                <div class="mb-1"><span class="text-gray-400">Flight Assignment:</span> <span class="font-bold text-white ml-1">${assignment}</span></div>
-                <div class="mb-1"><span class="text-gray-400">Chute:</span> <span class="font-bold text-white ml-1">${chute}</span></div>
-                <div><span class="text-gray-400">Ground Handler:</span> <span class="font-bold text-white ml-1">${gh}</span></div>
-            `;
-            
-            tableCustomTooltip.classList.remove('invisible', 'opacity-0');
-            tableCustomTooltip.classList.add('opacity-100', 'visible');
-        });
-
-        reclaimTbody.addEventListener('mousemove', (e) => {
-            if (!tableCustomTooltip.classList.contains('invisible')) {
-                tableCustomTooltip.style.left = e.clientX + 'px';
-                tableCustomTooltip.style.top = e.clientY + 'px';
-            }
-        });
-
-        reclaimTbody.addEventListener('mouseout', (e) => {
-            const cell = e.target.closest('.flight-cell');
-            if (!cell) return;
-            tableCustomTooltip.classList.add('invisible', 'opacity-0');
-            tableCustomTooltip.classList.remove('opacity-100', 'visible');
-        });
-
-        document.getElementById('upload').addEventListener('change', handleFileUpload);
-        
-        const filterIds = [
-            'filter-start-date', 'filter-end-date',
-            'slicer-interval', 'rummage-sort'
-        ];
-        
-        function triggerFilters() {
-            setTimeout(() => { applyFiltersAndRender(); }, 10);
-        }
-
-        filterIds.forEach(id => document.getElementById(id).addEventListener('change', triggerFilters));
-        document.getElementById('slicer-search-bag').addEventListener('input', triggerFilters);
-        document.getElementById('reset-filters').addEventListener('click', resetFilters);
-
-        document.getElementById('btn-export-excel').addEventListener('click', () => {
-            if (currentFilteredBags.length === 0) return;
-            
-            const exportData = currentFilteredBags.map(bag => ({
-                'EVENT TIME': bag.eventTime,
-                'FLIGHT': bag.flight,
-                'STD': stripSecondsFromDate(bag.std),
-                'BAGTAGID': bag.bagTagId,
-                'RUMMAGE': bag.rummage,
-                'RUMMAGE AREA': bag.rummageArea,
-                'REASON': bag.reason,
-                'CHUTE': bag.chute,
-                'GROUND HANDLER': bag.groundHandler,
-                'HOUR BEFORE STD': bag.hourBeforeStd
-            }));
-
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Rummage_Details");
-            XLSX.writeFile(wb, "Rummage_Details_Export.xlsx");
-        });
-
-        const flightMenu = document.getElementById('custom-flight-menu');
-        const flightSelect = document.getElementById('custom-flight-select');
-        const flightSearchInput = document.getElementById('flight-search-input');
-
-        flightSelect.addEventListener('click', (e) => {
-            e.stopPropagation();
-            document.querySelectorAll('.multi-select-menu').forEach(m => m.classList.add('hidden'));
-            flightMenu.classList.toggle('hidden');
-            if(!flightMenu.classList.contains('hidden')) flightSearchInput.focus();
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!flightMenu.contains(e.target) && !flightSelect.contains(e.target)) {
-                flightMenu.classList.add('hidden');
-            }
-        });
-
-        flightSearchInput.addEventListener('input', (e) => {
-            const term = e.target.value.toLowerCase();
-            document.querySelectorAll('.flight-item').forEach(item => {
-                item.style.display = item.textContent.toLowerCase().includes(term) ? 'block' : 'none';
-            });
-        });
-
-        function handleFlightSelection(flight, isChecked) {
-            if (isChecked) {
-                if (filterState.flight.includes('ALL') || filterState.flight.includes('SHIFTED_FLIGHTS')) {
-                    filterState.flight = [];
-                }
-                if (!filterState.flight.includes(flight)) filterState.flight.push(flight);
-            } else {
-                const idx = filterState.flight.indexOf(flight);
-                if (idx > -1) filterState.flight.splice(idx, 1);
-                if (filterState.flight.length === 0) {
-                    filterState.flight = ['ALL'];
-                }
-            }
-            updateFlightUI();
-            triggerFilters();
-        }
-
-        document.getElementById('cb-all-flights').addEventListener('change', (e) => {
-            if (e.target.checked) {
-                filterState.flight = ['ALL'];
-                updateFlightUI();
-                triggerFilters();
-            } else {
-                e.target.checked = true; // Prevent unchecking if nothing else is selected
-            }
-        });
-
-        document.getElementById('cb-shifted-flights').addEventListener('change', (e) => {
-            if (e.target.checked) {
-                filterState.flight = ['SHIFTED_FLIGHTS'];
-                updateFlightUI();
-                triggerFilters();
-            } else {
-                filterState.flight = ['ALL'];
-                updateFlightUI();
-                triggerFilters();
-            }
-        });
-
-        function updateFlightUI() {
-            const textEl = document.getElementById('custom-flight-text');
-            const container = document.getElementById('selected-flights-container');
-            
-            if (filterState.flight.includes('ALL')) {
-                textEl.textContent = 'All Flights';
-                container.classList.add('hidden');
-                container.classList.remove('flex');
-            } else if (filterState.flight.includes('SHIFTED_FLIGHTS')) {
-                textEl.textContent = 'Flight Shifted';
-                container.classList.add('hidden');
-                container.classList.remove('flex');
-            } else {
-                textEl.textContent = `${filterState.flight.length} Flights Selected`;
-                container.innerHTML = filterState.flight.map(f => `<span class="bg-blue-100 text-blue-700 text-[0.65rem] font-bold px-2 py-0.5 rounded border border-blue-200 inline-block">${f}</span>`).join('');
-                container.classList.remove('hidden');
-                container.classList.add('flex');
-            }
-            
-            // Sync specific checkboxes
-            document.getElementById('cb-all-flights').checked = filterState.flight.includes('ALL');
-            document.getElementById('cb-shifted-flights').checked = filterState.flight.includes('SHIFTED_FLIGHTS');
-            
-            document.querySelectorAll('.flight-checkbox').forEach(cb => {
-                cb.checked = filterState.flight.includes(cb.value);
-            });
-        }
-
-        setupDropdownToggle('btn-reason', 'menu-reason');
-        setupDropdownToggle('btn-handler', 'menu-handler');
-        setupDropdownToggle('btn-reclaim', 'menu-reclaim');
-
-        function handleFileUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const overlay = document.getElementById('loading-overlay');
-            overlay.classList.remove('hidden');
-
-            setTimeout(() => {
-                try {
-                    const reader = new FileReader();
-                    reader.onload = function (e) {
-                        try {
-                            const data = new Uint8Array(e.target.result);
-                            const workbook = XLSX.read(data, { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
-                            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                            const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
-
-                            processBagEntities(rawRows);
-                            setDefaultDateFilters();
-                            populateFilterDropdowns();
-                            
-                            document.getElementById('btn-save-as').classList.remove('hidden');
-                            document.getElementById('kpi-section').classList.remove('hidden');
-                            document.getElementById('charts-section').classList.remove('hidden');
-                            
-                            applyFiltersAndRender();
-                        } catch (err) {
-                            console.error("Data Processing Error:", err);
-                        } finally {
-                            overlay.classList.add('hidden');
-                        }
-                    };
-                    reader.readAsArrayBuffer(file);
-                } catch (err) {
-                    console.error("File Read Error:", err);
-                    overlay.classList.add('hidden');
-                }
-            }, 50);
-        }
-
-        function getRawValue(row, possibleKeys) {
-            if (!row) return '-';
-            const rowKeys = Object.keys(row);
-            for (const targetKey of possibleKeys) {
-                const cleanedTarget = targetKey.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-                for (const key of rowKeys) {
-                    const cleanedKey = key.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-                    if (cleanedKey === cleanedTarget) {
-                        const val = row[key];
-                        if (val !== undefined && val !== null && String(val).trim() !== '') return val;
-                    }
-                }
-            }
-            return '-';
-        }
-
-        function parseHourString(timeStr) {
-            if (timeStr === undefined || timeStr === null || timeStr === '') return null;
-            const str = String(timeStr).trim();
-            if (str === '-') return null;
-            
-            let isNegative = str.startsWith('-');
-            let cleanStr = isNegative ? str.substring(1) : str;
-            
-            if (cleanStr.includes(':')) {
-                let parts = cleanStr.split(':');
-                let h = parseInt(parts[0], 10) || 0;
-                let m = parseInt(parts[1], 10) || 0;
-                let decimal = h + (m / 60);
-                return isNegative ? -decimal : decimal;
-            }
-            
-            let num = parseFloat(str);
-            return isNaN(num) ? null : num;
-        }
-
-        function stripSecondsFromDate(timestampStr) {
-            if (!timestampStr || timestampStr === '-') return '-';
-            const parts = timestampStr.split(':');
-            return parts.length >= 3 ? parts.slice(0, 2).join(':') : timestampStr;
-        }
-
-        function parseCustomDateToJS(dateStr) {
-            if (!dateStr || dateStr === '-') return null;
-            const parts = dateStr.split(' ');
-            if (parts.length < 2) return null;
-            const [dd, mm, yy] = parts[0].split('/');
-            const [hh, min, ss] = parts[1].split(':');
-            if (!dd || !mm || !yy || !hh || !min) return null;
-            const year = yy.length === 2 ? 2000 + parseInt(yy, 10) : parseInt(yy, 10);
-            return new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10), parseInt(hh, 10), parseInt(min, 10), parseInt(ss || 0, 10));
-        }
-
-        function formatExcelDate(val) {
-            if (val === undefined || val === null || val === '' || val === '-') return '-';
-            const valStr = String(val).trim().replace(/[\s\u00a0]+/g, ' ');
-            if (valStr === '' || valStr === '-') return '-';
-
-            if (/^\d+(\.\d+)?$/.test(valStr)) {
-                const serial = parseFloat(valStr);
-                if (serial > 0) {
-                    const utc_days = Math.floor(serial - 25569);
-                    const fractional = serial - Math.floor(serial);
-                    let total_seconds = Math.round(fractional * 86400);
-                    let extraDays = 0;
-                    if (total_seconds >= 86400) { total_seconds -= 86400; extraDays = 1; }
-                    const dateObj = new Date((utc_days + extraDays) * 86400 * 1000);
-                    const sec = total_seconds % 60;
-                    const total_mins = Math.floor(total_seconds / 60);
-                    const min = total_mins % 60;
-                    const hr = Math.floor(total_mins / 60);
-                    
-                    return `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${String(dateObj.getUTCFullYear()).slice(-2)} ${hr}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-                }
-            }
-
-            const match = valStr.match(/^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?$/i);
-            if (match) {
-                let [_, p1, p2, p3, hrStr, minStr, secStr, ampm] = match;
-                let dd, mm, yyyy;
-                if (p1.length === 4) { yyyy = parseInt(p1, 10); mm = parseInt(p2, 10); dd = parseInt(p3, 10); } 
-                else { dd = parseInt(p1, 10); mm = parseInt(p2, 10); yyyy = parseInt(p3, 10); if (yyyy < 100) yyyy += 2000; }
-
-                let hr = hrStr !== undefined ? parseInt(hrStr, 10) : 0;
-                let min = minStr !== undefined ? parseInt(minStr, 10) : 0;
-                let sec = secStr !== undefined ? parseInt(secStr, 10) : 0;
-
-                if (ampm) {
-                    const upper = ampm.toUpperCase();
-                    if (upper === 'PM' && hr < 12) hr += 12;
-                    if (upper === 'AM' && hr === 12) hr = 0;
-                }
-
-                return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy).slice(-2)} ${hr}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-            }
-            return valStr;
-        }
-
-        function extractISODate(formattedDisplayDate) {
-            if (!formattedDisplayDate || formattedDisplayDate === '-') return '';
-            const parts = formattedDisplayDate.split(' ')[0].split('/');
-            if (parts.length === 3) {
-                const yy = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
-                return `${yy}-${parts[1]}-${parts[0]}`;
-            }
-            return '';
-        }
-
         // --- NEW STANDARDIZED DATE & TIME UTILS ---
         function normalizeDate(val) {
             if (val === undefined || val === null || val === '' || val === '-') return null;
@@ -2050,8 +775,6 @@
             }
 
             if (ms !== null) {
-                // Parquet stores naive dates as UTC epoch. We shift by local timezone offset 
-                // so the browser interprets the localized Date object with the original naive numbers.
                 return new Date(ms + (new Date().getTimezoneOffset() * 60000));
             }
 
@@ -2094,6 +817,48 @@
             const min = String(d.getMinutes()).padStart(2, '0');
             const sec = String(d.getSeconds()).padStart(2, '0');
             return `${dd}/${mm}/${yy} ${hr}:${min}:${sec}`;
+        }
+
+        function parseHourString(timeStr) {
+            if (timeStr === undefined || timeStr === null || timeStr === '') return null;
+            const str = String(timeStr).trim();
+            if (str === '-') return null;
+            
+            let isNegative = str.startsWith('-');
+            let cleanStr = isNegative ? str.substring(1) : str;
+            
+            if (cleanStr.includes(':')) {
+                let parts = cleanStr.split(':');
+                let h = parseInt(parts[0], 10) || 0;
+                let m = parseInt(parts[1], 10) || 0;
+                let decimal = h + (m / 60);
+                return isNegative ? -decimal : decimal;
+            }
+            
+            let num = parseFloat(str);
+            return isNaN(num) ? null : num;
+        }
+
+        function stripSecondsFromDate(timestampStr) {
+            if (!timestampStr || timestampStr === '-') return '-';
+            const parts = timestampStr.split(':');
+            return parts.length >= 3 ? parts.slice(0, 2).join(':') : timestampStr;
+        }
+
+        function getRawValue(row, possibleKeys) {
+            if (!row) return '-';
+            const rowKeys = Object.keys(row);
+            for (const targetKey of possibleKeys) {
+                const cleanedTarget = targetKey.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                for (const key of rowKeys) {
+                    const cleanedKey = key.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                    if (cleanedKey === cleanedTarget) {
+                        const val = row[key];
+                        if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+                    }
+                }
+            }
+            return '-';
         }
 
         function processBagEntities(rows) {
@@ -2149,23 +914,1156 @@
             });
         }
 
+        function setDefaultDateFilters() {
+            let maxDate = '';
+            bagDataset.forEach(bag => {
+                if (bag.dateOnlyISO && bag.dateOnlyISO > maxDate) maxDate = bag.dateOnlyISO;
+            });
+            if (maxDate) {
+                document.getElementById('filter-start-date').value = maxDate;
+                document.getElementById('filter-end-date').value = maxDate;
+            }
+        }
+
+        function populateMultiSelect(menuId, textId, optionsArray, defaultText, stateArray, isBlue = false) {
+            const menu = document.getElementById(menuId);
+            menu.innerHTML = '';
+            
+            const allLabel = document.createElement('label');
+            allLabel.className = 'flex items-center p-2 hover:bg-gray-50 cursor-pointer text-sm font-semibold border-b text-blue-600';
+            allLabel.innerHTML = `<input type="checkbox" value="ALL" class="mr-2 rounded" ${stateArray.includes('ALL') ? 'checked' : ''}> <span class="truncate">${defaultText}</span>`;
+            menu.appendChild(allLabel);
+
+            optionsArray.forEach(opt => {
+                const lbl = document.createElement('label');
+                lbl.className = `flex items-center p-2 hover:bg-gray-50 cursor-pointer text-sm border-b border-gray-50 ${isBlue ? 'font-semibold text-blue-700' : 'text-gray-700'}`;
+                lbl.innerHTML = `<input type="checkbox" value="${opt}" class="mr-2 rounded" ${stateArray.includes(opt) ? 'checked' : ''}> <span class="truncate">${opt}</span>`;
+                menu.appendChild(lbl);
+            });
+
+            const checkboxes = menu.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.addEventListener('change', (e) => {
+                    const val = e.target.value;
+                    if (val === 'ALL') {
+                        if (e.target.checked) {
+                            stateArray.length = 0;
+                            stateArray.push('ALL');
+                            checkboxes.forEach(c => c.checked = (c.value === 'ALL'));
+                        } else {
+                            stateArray.length = 0;
+                        }
+                    } else {
+                        const allCb = menu.querySelector('input[value="ALL"]');
+                        if (allCb.checked) {
+                            allCb.checked = false;
+                            stateArray.length = 0;
+                        }
+                        if (e.target.checked) stateArray.push(val);
+                        else {
+                            const idx = stateArray.indexOf(val);
+                            if (idx > -1) stateArray.splice(idx, 1);
+                        }
+                        if (stateArray.length === 0) {
+                            stateArray.push('ALL');
+                            allCb.checked = true;
+                        }
+                    }
+
+                    const textEl = document.getElementById(textId);
+                    if (stateArray.includes('ALL')) textEl.textContent = defaultText;
+                    else if (stateArray.length === 1) textEl.textContent = stateArray[0];
+                    else textEl.textContent = `${stateArray.length} Selected`;
+
+                    triggerFilters();
+                });
+            });
+        }
+
+        function populateFilterDropdowns() {
+            const flights = new Set();
+            const reasons = new Set();
+            const handlers = new Set();
+            const reclaims = new Set();
+
+            bagDataset.forEach(bag => {
+                if (bag.flight && bag.flight !== '-') flights.add(bag.flight);
+                if (bag.reason && bag.reason !== '-') reasons.add(bag.reason);
+                if (bag.groundHandler && bag.groundHandler !== '-') handlers.add(bag.groundHandler);
+                if (bag.rummageArea && bag.rummageArea !== '-') reclaims.add(bag.rummageArea);
+            });
+
+            let cIdx = 0;
+            Array.from(reclaims).sort().forEach(area => {
+                if(!areaColorMap.has(area)) {
+                    areaColorMap.set(area, areaColorPalette[cIdx % areaColorPalette.length]);
+                    cIdx++;
+                }
+            });
+
+            const flightOptionsList = document.getElementById('flight-options-list');
+            flightOptionsList.innerHTML = '';
+            Array.from(flights).sort().forEach(f => {
+                const lbl = document.createElement('label');
+                lbl.className = 'flex items-center px-2 py-1.5 hover:bg-gray-50 cursor-pointer text-sm flight-item rounded-md text-gray-700 font-medium transition-colors w-full';
+                lbl.innerHTML = `<input type="checkbox" value="${f}" class="mr-2 rounded flight-checkbox" ${filterState.flight.includes(f) ? 'checked' : ''}> <span class="truncate">${f}</span>`;
+                
+                const cb = lbl.querySelector('input');
+                cb.addEventListener('change', (e) => {
+                    handleFlightSelection(f, e.target.checked);
+                });
+                flightOptionsList.appendChild(lbl);
+            });
+
+            populateMultiSelect('menu-reason', 'text-reason', Array.from(reasons).sort(), 'All Reasons', filterState.reason);
+            populateMultiSelect('menu-handler', 'text-handler', Array.from(handlers).sort(), 'All GH', filterState.handler);
+            populateMultiSelect('menu-reclaim', 'text-reclaim', Array.from(reclaims).sort(), 'All Areas', filterState.reclaim, true);
+        }
+
+        function applyFiltersAndRender() {
+            const startDateStr = document.getElementById('filter-start-date').value;
+            const endDateStr = document.getElementById('filter-end-date').value;
+            const searchBagTag = document.getElementById('slicer-search-bag').value.trim().toLowerCase();
+
+            const filteredBags = [];
+
+            bagDataset.forEach((bag) => {
+                if (startDateStr && bag.dateOnlyISO < startDateStr) return;
+                if (endDateStr && bag.dateOnlyISO > endDateStr) return;
+                
+                if (filterState.flight.includes('SHIFTED_FLIGHTS')) {
+                    if (!SHIFTED_FLIGHTS_LIST.includes(bag.flight)) return;
+                } else if (!filterState.flight.includes('ALL')) {
+                    if (!filterState.flight.includes(bag.flight)) return;
+                }
+                
+                if (!filterState.reason.includes('ALL') && !filterState.reason.includes(bag.reason)) return;
+                if (!filterState.handler.includes('ALL') && !filterState.handler.includes(bag.groundHandler)) return;
+                if (!filterState.reclaim.includes('ALL') && !filterState.reclaim.includes(bag.rummageArea)) return;
+                if (searchBagTag !== '' && !bag.bagTagId.toLowerCase().includes(searchBagTag)) return;
+
+                filteredBags.push(bag);
+            });
+
+            currentFilteredBags = filteredBags; 
+
+            const btnExport = document.getElementById('btn-export-excel');
+            if (filteredBags.length > 0) {
+                btnExport.classList.remove('hidden');
+                btnExport.classList.add('flex');
+            } else {
+                btnExport.classList.add('hidden');
+                btnExport.classList.remove('flex');
+            }
+
+            const headerReclaimName = filterState.reclaim.includes('ALL') ? 'All Areas' : filterState.reclaim.join(', ');
+            document.getElementById('lbl-reclaim-name').textContent = headerReclaimName;
+            
+            const countStr = filteredBags.length > 500 ? `${filteredBags.length.toLocaleString()} (Showing top 500)` : filteredBags.length.toLocaleString();
+            document.getElementById('lbl-record-count').textContent = countStr;
+
+            renderKPIs(filteredBags);
+            renderTimeline(filteredBags);
+            renderRummageLoad(filteredBags);
+            currentTableLimit = 500;
+            renderTable(filteredBags);
+            renderDurationHistogram(filteredBags);
+            renderTimelineTable(filteredBags);
+            
+            triggerSimulation(); 
+        }
+
+        function renderDurationHistogram(bags) {
+            const chartDiv = document.getElementById('chart-histogram');
+
+            if (bags.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                return;
+            }
+
+            const durations = bags
+                .map(b => b.hourBeforeStdNum)
+                .filter(val => val !== null && !isNaN(val));
+
+            if (durations.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                return;
+            }
+
+            const trace = {
+                x: durations,
+                type: 'histogram',
+                marker: {
+                    color: 'rgba(99, 102, 241, 0.7)', 
+                    line: { color: 'rgba(79, 70, 229, 1)', width: 1.5 } 
+                },
+                hovertemplate: `<span style="color: #d1d5db;">Time Before STD:</span> <b style="color: #ffffff;">%{x} hrs</b><br>` +
+                               `<span style="color: #d1d5db;">Bags Processed:</span> <b style="color: #ffffff;">%{y}</b><extra></extra>`
+            };
+
+            const layout = {
+                margin: { t: 30, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                xaxis: { 
+                    title: 'Hours Before STD',
+                    zeroline: false,
+                    tickfont: { color: '#4b5563' }
+                },
+                yaxis: { 
+                    title: { text: 'Number of Bags', standoff: 30 },
+                    zeroline: false,
+                    tickfont: { color: '#4b5563' }
+                },
+                hoverlabel: {
+                    bgcolor: '#1f2937', 
+                    bordercolor: '#374151',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                }
+            };
+
+            Plotly.react(chartDiv, [trace], layout, PLOTLY_CONFIG);
+        }
+
+        function renderKPIs(bags) {
+            const totalBags = bags.length;
+            const uniqueFlightsList = bags.map(b => b.flight).filter(f => f && f !== '-');
+            const totalFlights = new Set(uniqueFlightsList).size;
+            
+            const mtbFlightsCount = new Set(bags.filter(b => {
+                const c = (b.chute || '').toUpperCase();
+                return c.startsWith('MA') || c.startsWith('MB');
+            }).map(b => b.flight)).size;
+
+            const satFlightsCount = new Set(bags.filter(b => {
+                const c = (b.chute || '').toUpperCase();
+                return c.startsWith('MC1') || c.startsWith('MC2');
+            }).map(b => b.flight)).size;
+
+            const intervalSelect = document.getElementById('slicer-interval');
+            const interval = intervalSelect.value;
+            const intervalText = intervalSelect.options[intervalSelect.selectedIndex].text;
+            const globalTimeMap = new Map();
+
+            bags.forEach(bag => {
+                if (!bag.timestamp) return;
+                let binnedTime;
+                if (interval === 'daily') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+                } else if (interval === 'hourly') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), 0, 0).getTime();
+                } else if (interval === '15min') {
+                    const dt = new Date(bag.timestamp);
+                    const min = dt.getMinutes();
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), min - (min % 15), 0).getTime();
+                } else {
+                    binnedTime = bag.timestamp;
+                }
+                globalTimeMap.set(binnedTime, (globalTimeMap.get(binnedTime) || 0) + 1);
+            });
+
+            let maxBagsInterval = 0;
+            let maxBagsTime = null;
+            let totalBagsInIntervals = 0;
+
+            globalTimeMap.forEach((count, time) => {
+                totalBagsInIntervals += count;
+                if (count > maxBagsInterval) {
+                    maxBagsInterval = count;
+                    maxBagsTime = time;
+                }
+            });
+
+            const intervalCount = globalTimeMap.size;
+            const avgBagsInterval = intervalCount > 0 ? Math.round(totalBagsInIntervals / intervalCount) : 0;
+
+            let avgHourStd = '-';
+            let maxHourStdRaw = '-';
+            let minHourStdRaw = '-';
+            
+            let maxColorClass = 'text-gray-500';
+            let minColorClass = 'text-gray-500';
+
+            let minBag = null;
+            let maxBagForMinMax = null;
+
+            let maxVal = -Infinity;
+            let minVal = Infinity;
+            let sum = 0;
+            let validCount = 0;
+
+            bags.forEach(b => {
+                if (b.hourBeforeStdNum !== null) {
+                    sum += b.hourBeforeStdNum;
+                    validCount++;
+                    if (b.hourBeforeStdNum > maxVal) { maxVal = b.hourBeforeStdNum; maxBagForMinMax = b; }
+                    if (b.hourBeforeStdNum < minVal) { minVal = b.hourBeforeStdNum; minBag = b; }
+                }
+            });
+
+            if (validCount > 0) {
+                let avgNum = sum / validCount;
+                avgHourStd = formatDecimalToHHmm(avgNum);
+                maxHourStdRaw = formatDecimalToHHmm(maxVal);
+                minHourStdRaw = formatDecimalToHHmm(minVal);
+                
+                maxColorClass = maxVal < 0 ? 'text-red-400' : (maxVal <= 1 ? 'text-yellow-400' : 'text-green-400');
+                minColorClass = minVal < 0 ? 'text-red-400' : (minVal <= 1 ? 'text-yellow-400' : 'text-green-400');
+            }
+
+            document.getElementById('kpi-bags').textContent = totalBags.toLocaleString();
+            document.getElementById('kpi-flights').textContent = totalFlights.toLocaleString();
+            
+            if(document.getElementById('tooltip-flights-mtb')) {
+                document.getElementById('tooltip-flights-mtb').innerHTML = `<span class="text-gray-400">MTB:</span> <span class="font-bold text-green-400 ml-1">${mtbFlightsCount}</span>`;
+            }
+            if(document.getElementById('tooltip-flights-sat')) {
+                document.getElementById('tooltip-flights-sat').innerHTML = `<span class="text-gray-400">SAT:</span> <span class="font-bold text-yellow-400 ml-1">${satFlightsCount}</span>`;
+            }
+
+            document.getElementById('kpi-avg-bags-label').textContent = `Total Bags (${intervalText})`;
+            document.getElementById('kpi-avg-bags').textContent = avgBagsInterval.toLocaleString();
+            document.getElementById('kpi-max-bags-interval').textContent = maxBagsInterval.toLocaleString();
+
+            const tooltipBoxInterval = document.getElementById('tooltip-max-bags-interval');
+            if (tooltipBoxInterval && maxBagsTime) {
+                const d = new Date(maxBagsTime);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yy = String(d.getFullYear()).slice(-2);
+                
+                const timeLabel = interval === 'daily' ? `${dd}/${mm}/${yy}` : `${dd}/${mm}/${yy} ${hh}:${min}`;
+                
+                tooltipBoxInterval.innerHTML = `
+                    <div class="font-bold text-gray-300 uppercase tracking-wide border-b border-gray-600 pb-1.5 mb-2">MAX BAGS RECORDED</div>
+                    <div class="mb-1"><span class="text-gray-400">Date & Time:</span> <span class="font-bold text-white ml-1">${timeLabel}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-blue-400 ml-1">${maxBagsInterval}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+            } else if (tooltipBoxInterval) {
+                tooltipBoxInterval.innerHTML = '';
+            }
+
+            document.getElementById('kpi-avg-time-std').textContent = avgHourStd;
+            
+            const kpiMaxEl = document.getElementById('kpi-max-time-std');
+            kpiMaxEl.textContent = maxHourStdRaw;
+            kpiMaxEl.className = `text-xl ${maxColorClass}`;
+            
+            const kpiMinEl = document.getElementById('kpi-min-time-std');
+            kpiMinEl.textContent = minHourStdRaw;
+            kpiMinEl.className = `text-xl ${minColorClass}`;
+            
+            const tooltipBox = document.getElementById('tooltip-maxmin-std');
+            if(tooltipBox && validCount > 0 && maxBagForMinMax && minBag) {
+                tooltipBox.innerHTML = `
+                    <div class="font-bold text-gray-300 uppercase tracking-wide border-b border-gray-600 pb-1 mb-2">DETAILS</div>
+                    <div class="mb-2">
+                        <div class="${maxColorClass} font-bold text-[0.65rem] uppercase mb-0.5">Max (${maxHourStdRaw})</div>
+                        <div class="text-gray-400 leading-tight">Flight: <span class="text-white">${maxBagForMinMax.flight}</span></div>
+                        <div class="text-gray-400 leading-tight">Dispatch: <span class="text-white">${maxBagForMinMax.eventTime}</span></div>
+                        <div class="text-gray-400 leading-tight">STD: <span class="text-white">${stripSecondsFromDate(maxBagForMinMax.std)}</span></div>
+                    </div>
+                    <div>
+                        <div class="${minColorClass} font-bold text-[0.65rem] uppercase mb-0.5">Min (${minHourStdRaw})</div>
+                        <div class="text-gray-400 leading-tight">Flight: <span class="text-white">${minBag.flight}</span></div>
+                        <div class="text-gray-400 leading-tight">Dispatch: <span class="text-white">${minBag.eventTime}</span></div>
+                        <div class="text-gray-400 leading-tight">STD: <span class="text-white">${stripSecondsFromDate(minBag.std)}</span></div>
+                    </div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+            } else if (tooltipBox) {
+                tooltipBox.innerHTML = ``;
+            }
+        }
+
+        function triggerSimulation() {
+            generateTrips();
+            renderSimUI();
+        }
+
+        function generateTrips() {
+            generatedTrips = [];
+            if(simEntries.length === 0) return;
+
+            const valLoad = parseFloat(document.getElementById('sim-f-load').value) || 0;
+            const valUnload = parseFloat(document.getElementById('sim-f-unload').value) || 0;
+            const valEff = parseFloat(document.getElementById('sim-f-eff').value) || 100;
+            const valMM = parseFloat(document.getElementById('sim-f-mm').value) || 0;
+            const valSS = parseFloat(document.getElementById('sim-f-ss').value) || 0;
+            const valMS = parseFloat(document.getElementById('sim-f-ms').value) || 0;
+            
+            const intervalType = document.getElementById('slicer-interval').value;
+
+            const entriesByTime = {};
+            simEntries.forEach(e => {
+                if(!entriesByTime[e.time]) entriesByTime[e.time] = [];
+                entriesByTime[e.time].push(e);
+            });
+
+            Object.keys(entriesByTime).sort().forEach(timeStr => {
+                const fleetInputs = entriesByTime[timeStr]; 
+                
+                const tParts = timeStr.split(':');
+                const targetMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
+                let durationMins = 60; 
+                if (intervalType === '15min') durationMins = 15;
+                if (intervalType === 'daily') durationMins = 1440; 
+
+                const matchedBags = currentFilteredBags.filter(b => {
+                    if (!b.timestamp) return false;
+                    
+                    const d = new Date(b.timestamp);
+                    const bMins = d.getHours() * 60 + d.getMinutes();
+                    return bMins >= targetMins && bMins < (targetMins + durationMins);
+                });
+
+                const buckets = { MTB: [], SAT: [] };
+                matchedBags.forEach(b => {
+                    const cArea = (b.chute || '').toUpperCase();
+                    if(cArea.startsWith('MC')) buckets.SAT.push(b);
+                    else buckets.MTB.push(b);
+                });
+
+                let mtbBagsCount = buckets.MTB.length;
+                let satBagsCount = buckets.SAT.length;
+
+                fleetInputs.forEach(v => {
+                    v.allowedDests = [];
+                    v.bags = [];
+                    v.totalTrips = 0;
+                    v.mins = 0;
+                    v.wave1Bags = 0;
+                });
+
+                if (fleetInputs.length === 1) {
+                    fleetInputs[0].allowedDests = ['MTB', 'SAT'];
+                } else {
+                    fleetInputs.forEach(v => {
+                        if (mtbBagsCount >= satBagsCount && mtbBagsCount > 0) {
+                            v.allowedDests.push('MTB');
+                            mtbBagsCount -= v.cap;
+                        } else if (satBagsCount > 0) {
+                            v.allowedDests.push('SAT');
+                            satBagsCount -= v.cap;
+                        } else {
+                            if (fleetInputs.filter(f=>f.allowedDests.includes('MTB')).length <= fleetInputs.filter(f=>f.allowedDests.includes('SAT')).length) {
+                                v.allowedDests.push('MTB');
+                            } else {
+                                v.allowedDests.push('SAT');
+                            }
+                        }
+                    });
+                }
+
+                function groupBags(bagList) {
+                    const map = new Map();
+                    bagList.forEach(b => {
+                        const key = b.flight + '::' + b.chute;
+                        if(!map.has(key)) map.set(key, []);
+                        map.get(key).push(b);
+                    });
+                    return Array.from(map.values()).sort((a,b) => b.length - a.length);
+                }
+
+                let mtbGroups = groupBags(buckets.MTB);
+                let satGroups = groupBags(buckets.SAT);
+
+                function getNextChunk(groups, space) {
+                    for (let i = 0; i < groups.length; i++) {
+                        if (groups[i].length > 0) {
+                            let chunk = groups[i].slice(0, space);
+                            groups[i] = groups[i].slice(space);
+                            return chunk;
+                        }
+                    }
+                    return [];
+                }
+
+                let tripNum = 1;
+                let anyBagMoved = true;
+
+                while (anyBagMoved) {
+                    anyBagMoved = false;
+                    
+                    fleetInputs.forEach(v => {
+                        let spaceLeft = v.cap;
+                        let tripBags = [];
+                        
+                        v.allowedDests.forEach(dest => {
+                            let groups = dest === 'MTB' ? mtbGroups : satGroups;
+                            while (spaceLeft > 0) {
+                                let chunk = getNextChunk(groups, spaceLeft);
+                                if (chunk.length === 0) break;
+                                tripBags.push(...chunk);
+                                spaceLeft -= chunk.length;
+                                anyBagMoved = true;
+                            }
+                        });
+                        
+                        if (tripBags.length > 0) {
+                            v.totalTrips = tripNum;
+                            v.bags.push(...tripBags);
+                            
+                            if (tripNum === 1) v.wave1Bags += tripBags.length;
+                            
+                            let hasMTB_orig = false, hasSAT_orig = false;
+                            let hasMTB_dest = false, hasSAT_dest = false;
+                            tripBags.forEach(b => {
+                                const oArea = b.rummageArea.toUpperCase();
+                                const cArea = (b.chute || '').toUpperCase();
+                                if (oArea.includes('SAT')) hasSAT_orig = true; else hasMTB_orig = true;
+                                if (cArea.startsWith('MC')) hasSAT_dest = true; else hasMTB_dest = true;
+                            });
+                            
+                            let tTrans = valMS; 
+                            if (hasMTB_orig && !hasSAT_orig && hasMTB_dest && !hasSAT_dest) tTrans = valMM;
+                            if (hasSAT_orig && !hasMTB_orig && hasSAT_dest && !hasSAT_dest) tTrans = valSS;
+                            
+                            const tLoad = (tripBags.length * valLoad) / 60;
+                            const tUnload = (tripBags.length * valUnload) / 60;
+                            v.mins += (tLoad + tTrans + tUnload) / (valEff / 100);
+                        }
+                    });
+                    if (anyBagMoved) tripNum++;
+                }
+
+                fleetInputs.forEach(v => {
+                    generatedTrips.push(v);
+                });
+            });
+        }
+
+        function renderSimUI() {
+            const list = document.getElementById('sim-entries-list');
+            list.innerHTML = '';
+            let globalTotalBags = 0;
+            let globalTotalMins = 0;
+            let globalMaxWorkload = 0;
+            let maxWorkloadDetails = null;
+
+            let globalMaxTransports = 0;
+            let maxTransDetails = null;
+
+            const entriesByTime = {};
+            simEntries.forEach(e => {
+                if(!entriesByTime[e.time]) entriesByTime[e.time] = [];
+                entriesByTime[e.time].push(e);
+            });
+
+            const tripsByTime = {};
+            generatedTrips.forEach(t => {
+                if(!tripsByTime[t.time]) tripsByTime[t.time] = [];
+                tripsByTime[t.time].push(t);
+            });
+
+            Object.keys(entriesByTime).sort().forEach(timeStr => {
+                const fleet = tripsByTime[timeStr] || [];
+
+                const intervalType = document.getElementById('slicer-interval').value;
+                const tParts = timeStr.split(':');
+                const targetMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
+                let durationMins = 60; 
+                if (intervalType === '15min') durationMins = 15;
+                if (intervalType === 'daily') durationMins = 1440; 
+                
+                const matchedBags = currentFilteredBags.filter(b => {
+                    if (!b.timestamp) return false;
+                    
+                    const d = new Date(b.timestamp);
+                    const bMins = d.getHours() * 60 + d.getMinutes();
+                    return bMins >= targetMins && bMins < (targetMins + durationMins);
+                });
+                const blockTotalAvailableBags = matchedBags.length;
+
+                let loadedBagsWave1 = fleet.reduce((sum, v) => sum + (v.wave1Bags || 0), 0);
+                let balance = blockTotalAvailableBags - loadedBagsWave1;
+                if (balance < 0) balance = 0; 
+                
+                let totalTrans = fleet.length;
+                let maxTrips = fleet.length > 0 ? Math.max(...fleet.map(v => v.totalTrips || 0)) : 0;
+                let totalMinsSum = fleet.reduce((sum, v) => sum + (v.mins || 0), 0);
+                let avgWorkloadMins = totalTrans > 0 ? totalMinsSum / totalTrans : 0;
+
+                globalTotalBags += blockTotalAvailableBags; 
+                globalTotalMins += avgWorkloadMins;
+                
+                let blockBags = [];
+                fleet.forEach(t => { if(t.bags) blockBags.push(...t.bags); });
+                
+                let flights = new Set(blockBags.map(b => b.flight));
+                let dates = new Set(blockBags.map(b => b.dateOnlyISO).filter(d => d));
+                let dateDisplay = "Multiple";
+                let dateArr = Array.from(dates);
+                if (dateArr.length === 1 && dateArr[0]) {
+                    let parts = dateArr[0].split('-');
+                    if(parts.length === 3) dateDisplay = `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+                    else dateDisplay = dateArr[0];
+                }
+                
+                let lorryCount = entriesByTime[timeStr].filter(e => e.type === 'Lorry').length;
+                let trolleyCount = entriesByTime[timeStr].filter(e => e.type === 'Trolley').length;
+
+                if (avgWorkloadMins >= globalMaxWorkload && fleet.length > 0) {
+                    globalMaxWorkload = avgWorkloadMins;
+                    maxWorkloadDetails = {
+                        date: dateDisplay, time: timeStr, totalFlight: flights.size,
+                        totalBags: blockTotalAvailableBags, totalTrans: totalTrans,
+                        lorryCount: lorryCount, trolleyCount: trolleyCount, totalTrip: maxTrips
+                    };
+                }
+
+                let currentTotalTrans = entriesByTime[timeStr].length;
+                if (currentTotalTrans >= globalMaxTransports && currentTotalTrans > 0) {
+                    globalMaxTransports = currentTotalTrans;
+                    maxTransDetails = {
+                        date: dateDisplay, time: timeStr,
+                        lorryCount: lorryCount, trolleyCount: trolleyCount
+                    };
+                }
+
+                let chipsHtml = fleet.map(t => {
+                    return `<button onclick="openTripModal('${t.id}')" class="bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded text-[0.65rem] font-bold hover:bg-blue-200 transition shadow-sm truncate cursor-pointer" title="Click to view assigned bags">${t.name}</button>`;
+                }).join('');
+
+                const div = document.createElement('div');
+                div.className = "bg-white border border-gray-200 rounded p-1.5 shadow-sm relative transition-all flex flex-col gap-1.5";
+                div.innerHTML = `
+                    <div class="flex items-center justify-between text-xs px-0.5 pt-0.5">
+                        <span class="font-bold text-gray-800 whitespace-nowrap">Time: <span class="text-blue-600">${timeStr}</span></span>
+                        <div class="flex items-center justify-end gap-1.5 flex-1 mx-3 min-w-0">
+                            ${chipsHtml}
+                        </div>
+                        <button onclick="removeTimeGroup('${timeStr}')" class="text-red-400 hover:text-red-700 font-bold transition text-lg leading-none" title="Remove all inputs for ${timeStr}">&times;</button>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1 text-gray-600 bg-gray-50 p-1 rounded border border-gray-100">
+                        <div class="flex flex-col min-w-0 text-center">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Loaded Bags">Loaded Bags</span>
+                            <b class="text-blue-600 text-xs truncate">${loadedBagsWave1}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Balance">Balance</span>
+                            <b class="text-red-500 text-xs truncate">${balance}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Total Trans.">Total Trans.</span>
+                            <b class="text-gray-800 text-xs truncate">${totalTrans}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Total Trips">Total Trips</span>
+                            <b class="text-gray-800 text-xs truncate">${maxTrips}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Workload (Avg)">Workload</span>
+                            <b class="text-gray-800 text-xs truncate">${Math.round(avgWorkloadMins)}m</b>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+            
+            document.getElementById('sim-out-bags').textContent = globalTotalBags.toLocaleString();
+            
+            let displayTime = Math.round(globalTotalMins) + 'm';
+            if (globalTotalMins > 60) {
+                const h = Math.floor(globalTotalMins / 60);
+                const m = Math.round(globalTotalMins % 60);
+                displayTime = `${h}h ${m}m`;
+            }
+            document.getElementById('sim-out-duration').textContent = displayTime;
+            
+            const maxWlEl = document.getElementById('out-max-workload');
+            const maxWlDateTimeEl = document.getElementById('out-max-workload-datetime');
+            const maxWlTooltip = document.getElementById('out-max-workload-tooltip');
+
+            if (simEntries.length > 0 && maxWorkloadDetails) {
+                maxWlEl.innerHTML = `${Math.round(globalMaxWorkload)} <span class="text-sm font-semibold text-teal-500 ml-0.5">minutes</span>`;
+                maxWlDateTimeEl.textContent = `${maxWorkloadDetails.date} ${maxWorkloadDetails.time}`;
+                
+                maxWlTooltip.innerHTML = `
+                    <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">WORKLOAD DETAILS</div>
+                    <div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.date}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Time:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.time}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Flight:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalFlight}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalBags}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Transport:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalTrans} <span class="text-gray-400 font-normal opacity-90">(Lorry: ${maxWorkloadDetails.lorryCount} | Trolley: ${maxWorkloadDetails.trolleyCount})</span></span></div>
+                    <div><span class="text-gray-400">Total Trip:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalTrip}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+                maxWlTooltip.classList.remove('hidden');
+            } else {
+                maxWlEl.textContent = '-';
+                maxWlDateTimeEl.textContent = '-';
+                maxWlTooltip.innerHTML = '';
+                maxWlTooltip.classList.add('hidden');
+            }
+
+            const maxTransEl = document.getElementById('out-max-transports');
+            const maxTransDateTimeEl = document.getElementById('out-max-transports-datetime');
+            const maxTransTooltip = document.getElementById('out-max-transports-tooltip');
+
+            if (simEntries.length > 0 && maxTransDetails && globalMaxTransports > 0) {
+                maxTransEl.textContent = globalMaxTransports;
+                maxTransDateTimeEl.textContent = `${maxTransDetails.date} ${maxTransDetails.time}`;
+                
+                maxTransTooltip.innerHTML = `
+                    <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">FLEET DETAILS</div>
+                    <div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1">${maxTransDetails.date}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Time:</span> <span class="font-bold text-white ml-1">${maxTransDetails.time}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Lorry Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.lorryCount}</span></div>
+                    <div><span class="text-gray-400">Trolley Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.trolleyCount}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+                maxTransTooltip.classList.remove('hidden');
+            } else {
+                maxTransEl.textContent = '-';
+                maxTransDateTimeEl.textContent = '-';
+                maxTransTooltip.innerHTML = '';
+                maxTransTooltip.classList.add('hidden');
+            }
+        }
+
+        function generateCustomTicks(minTime, maxTime, interval) {
+            const tickvals = [];
+            const ticktext = [];
+            
+            const diff = maxTime - minTime;
+            let tickStepMs;
+            
+            let isThirteenDaysOrMore = diff >= 86400000 * 12.5;
+            let isEightDaysOrMore = diff >= 86400000 * 7.5;
+            
+            if (interval === 'daily') {
+                tickStepMs = 86400000; 
+            } else {
+                if (isThirteenDaysOrMore) tickStepMs = 86400000; 
+                else if (isEightDaysOrMore) tickStepMs = 43200000; 
+                else if (diff >= 86400000 * 2.5) tickStepMs = 43200000; 
+                else tickStepMs = 10800000; 
+            }
+
+            let currentDt = new Date(minTime);
+            if (tickStepMs >= 86400000) {
+                currentDt.setHours(0,0,0,0);
+            } else if (tickStepMs === 43200000) {
+                const h = currentDt.getHours();
+                currentDt.setHours(h - (h % 12), 0, 0, 0);
+            } else {
+                const h = currentDt.getHours();
+                currentDt.setHours(h - (h % 3), 0, 0, 0);
+            }
+            
+            let current = currentDt.getTime();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+            let safety = 0;
+            while (current <= maxTime + tickStepMs && safety < 1000) {
+                tickvals.push(current);
+                const d = new Date(current);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mm = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mmm = monthNames[d.getMonth()];
+                const yy = String(d.getFullYear()).slice(-2);
+                
+                let baseDateStr = (isEightDaysOrMore && interval !== 'daily') ? `${dd}-${mmm}` : `${dd} ${mmm} ${yy}`;
+                
+                let finalDateStr;
+                if (isThirteenDaysOrMore && interval !== 'daily') {
+                    finalDateStr = baseDateStr; 
+                } else {
+                    finalDateStr = `<span style="font-weight: 900;"><b>${baseDateStr}</b></span>`;
+                }
+
+                if (tickStepMs >= 86400000) {
+                    ticktext.push(finalDateStr);
+                } else {
+                    if (hh === '00' && mm === '00') {
+                        ticktext.push(`00:00<br>${finalDateStr}`);
+                    } else {
+                        ticktext.push(`${hh}:${mm}`);
+                    }
+                }
+                current += tickStepMs;
+                safety++;
+            }
+            return { tickvals, ticktext };
+        }
+
+        function renderTimeline(bags) {
+            const chartDiv = document.getElementById('chart-timeline');
+            const countEl = document.getElementById('out-overlap-count');
+            const modalBody = document.getElementById('overlap-modal-body');
+            const modalTotal = document.getElementById('overlap-modal-total');
+
+            if (bags.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                document.getElementById('out-max-bags').textContent = "0";
+                document.getElementById('out-max-time').textContent = "-";
+                countEl.textContent = "0";
+                modalBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-gray-400 italic">No flight data available.</td></tr>';
+                modalTotal.textContent = 'Total Bags: 0';
+                return;
+            }
+
+            const interval = document.getElementById('slicer-interval').value;
+            const tracesMap = new Map(); 
+            const globalTimeMap = new Map(); 
+            const globalFlightBagMap = new Map(); 
+
+            let stepMs = 1000; 
+            if (interval === 'daily') stepMs = 86400000;
+            else if (interval === 'hourly') stepMs = 3600000;
+            else if (interval === '15min') stepMs = 900000;
+
+            bags.forEach(bag => {
+                if (!bag.timestamp) return;
+
+                let binnedTime;
+                if (interval === 'daily') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+                } else if (interval === 'hourly') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), 0, 0).getTime();
+                } else if (interval === '15min') {
+                    const dt = new Date(bag.timestamp);
+                    const min = dt.getMinutes();
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), min - (min % 15), 0).getTime();
+                } else {
+                    binnedTime = bag.timestamp;
+                }
+
+                globalTimeMap.set(binnedTime, (globalTimeMap.get(binnedTime) || 0) + 1);
+
+                if (!globalFlightBagMap.has(binnedTime)) {
+                    globalFlightBagMap.set(binnedTime, new Map());
+                }
+                if (bag.flight && bag.flight !== '-') {
+                    const fbMap = globalFlightBagMap.get(binnedTime);
+                    fbMap.set(bag.flight, (fbMap.get(bag.flight) || 0) + 1);
+                }
+
+                const traceKey = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
+
+                if (!tracesMap.has(traceKey)) tracesMap.set(traceKey, new Map());
+                
+                const timeMap = tracesMap.get(traceKey);
+                timeMap.set(binnedTime, (timeMap.get(binnedTime) || 0) + 1);
+            });
+
+            let maxBags = 0;
+            let peakTime = null;
+            globalTimeMap.forEach((count, time) => {
+                if (count > maxBags) {
+                    maxBags = count;
+                    peakTime = time;
+                }
+            });
+
+            document.getElementById('out-max-bags').textContent = maxBags.toLocaleString();
+            if (peakTime) {
+                const d = new Date(peakTime);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yy = String(d.getFullYear()).slice(-2);
+                document.getElementById('out-max-time').textContent = `${dd}/${mm}/${yy} ${hh}:${min}`;
+            } else {
+                document.getElementById('out-max-bags').textContent = "0";
+                document.getElementById('out-max-time').textContent = "-";
+            }
+
+            if (peakTime && globalFlightBagMap.has(peakTime)) {
+                const fbMap = globalFlightBagMap.get(peakTime);
+                countEl.textContent = fbMap.size.toLocaleString();
+                
+                let tbodyHtml = '';
+                let modalTotalBags = 0;
+                
+                const sortedFlights = Array.from(fbMap.entries()).sort((a, b) => {
+                    if (b[1] !== a[1]) return b[1] - a[1];
+                    return a[0].localeCompare(b[0]);
+                });
+
+                sortedFlights.forEach(([fl, qty]) => {
+                    tbodyHtml += `<tr class="border-b border-gray-100 hover:bg-gray-50"><td class="py-2 text-sm font-bold text-gray-800">${fl}</td><td class="py-2 text-sm text-right font-mono">${qty}</td></tr>`;
+                    modalTotalBags += qty;
+                });
+                
+                modalBody.innerHTML = tbodyHtml;
+                modalTotal.textContent = `Total Bags: ${modalTotalBags}`;
+            } else {
+                countEl.textContent = "0";
+                modalBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-gray-400 italic">No flight data available.</td></tr>';
+                modalTotal.textContent = 'Total Bags: 0';
+            }
+
+            let minTime = Infinity;
+            let maxTime = -Infinity;
+
+            tracesMap.forEach(timeMap => {
+                const times = Array.from(timeMap.keys());
+                if(times.length > 0) {
+                    const traceMin = Math.min(...times);
+                    const traceMax = Math.max(...times);
+                    if (!timeMap.has(traceMin - stepMs)) timeMap.set(traceMin - stepMs, 0);
+                    if (!timeMap.has(traceMax + stepMs)) timeMap.set(traceMax + stepMs, 0);
+                    
+                    minTime = Math.min(minTime, traceMin - stepMs);
+                    maxTime = Math.max(maxTime, traceMax + stepMs);
+                }
+            });
+
+            let customTicks = { tickvals: [], ticktext: [] };
+            if (minTime !== Infinity && maxTime !== -Infinity) {
+                customTicks = generateCustomTicks(minTime, maxTime, interval);
+            }
+
+            const plotlyData = [];
+
+            const definedOrder = ['MA', 'MB', 'MC1', 'MC2', 'MS1', 'MS2'];
+            const traceKeys = Array.from(tracesMap.keys()).sort((a, b) => {
+                let idxA = definedOrder.indexOf(a);
+                let idxB = definedOrder.indexOf(b);
+                if (idxA === -1) idxA = 999;
+                if (idxB === -1) idxB = 999;
+                if (idxA !== idxB) return idxA - idxB;
+                return a.localeCompare(b);
+            });
+
+            traceKeys.forEach(traceKey => {
+                const timeMap = tracesMap.get(traceKey);
+                const xVals = [];
+                const yVals = [];
+                
+                const sortedTimes = Array.from(timeMap.keys()).sort((a, b) => a - b);
+                sortedTimes.forEach(t => {
+                    xVals.push(new Date(t));
+                    yVals.push(timeMap.get(t));
+                });
+                
+                const traceColor = areaColorMap.get(traceKey) || '#94a3b8';
+
+                plotlyData.push({
+                    x: xVals,
+                    y: yVals,
+                    name: traceKey,
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tozeroy', 
+                    opacity: 0.5,    
+                    line: { shape: 'spline', smoothing: 0.4, color: traceColor },
+                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                });
+            });
+
+            const layout = {
+                margin: { t: 40, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                xaxis: { 
+                    type: 'date',
+                    tickvals: customTicks.tickvals,
+                    ticktext: customTicks.ticktext,
+                    tickmode: 'array',
+                    range: [minTime, maxTime], 
+                    hoverformat: '%d/%m/%y %H:%M' 
+                },
+                yaxis: { 
+                    title: { text: 'Bags Count', standoff: 30 }
+                },
+                showlegend: true,
+                hovermode: 'x unified', 
+                hoverlabel: {
+                    bgcolor: '#1f2937',     
+                    bordercolor: '#374151', 
+                    namelength: -1,         
+                    align: 'left',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                },
+                legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 }
+            };
+
+            Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
+        }
+
+        function renderRummageLoad(bags) {
+            const chartDiv = document.getElementById('chart-bar');
+            if (bags.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                return;
+            }
+
+            const areaCounts = new Map();
+            bags.forEach(bag => {
+                const area = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
+                areaCounts.set(area, (areaCounts.get(area) || 0) + 1);
+            });
+
+            let sortedAreas = Array.from(areaCounts.keys());
+            const sortMethod = document.getElementById('rummage-sort').value;
+
+            sortedAreas.sort((a, b) => {
+                if (sortMethod === 'bags-desc') return areaCounts.get(b) - areaCounts.get(a);
+                if (sortMethod === 'bags-asc') return areaCounts.get(a) - areaCounts.get(b);
+                if (sortMethod === 'alpha') return a.localeCompare(b);
+                if (sortMethod === 'area') {
+                    const aIsMTB = a.toUpperCase().includes('MTB') ? 0 : 1;
+                    const bIsMTB = b.toUpperCase().includes('MTB') ? 0 : 1;
+                    if (aIsMTB !== bIsMTB) return aIsMTB - bIsMTB;
+                    return a.localeCompare(b);
+                }
+                return 0;
+            });
+
+            const xVals = sortedAreas;
+            const yVals = sortedAreas.map(a => areaCounts.get(a));
+            const colors = sortedAreas.map(a => areaColorMap.get(a) || '#94a3b8');
+
+            const plotlyData = [{
+                x: xVals,
+                y: yVals,
+                type: 'bar',
+                marker: { color: colors, opacity: 0.5 },
+                text: yVals,
+                textposition: 'outside',
+                textfont: { color: '#4b5563', weight: 'bold' },
+                cliponaxis: false,
+                hovertemplate: `<span style="color: #d1d5db;">%{x}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+            }];
+
+            const layout = {
+                margin: { t: 30, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                xaxis: { title: '', tickangle: 0 },
+                yaxis: { title: { text: 'Total Bags', standoff: 30 } },
+                showlegend: false,
+                hoverlabel: {
+                    bgcolor: '#1f2937', bordercolor: '#374151',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                }
+            };
+
+            Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
+        }
+
+        function renderTable(bags) {
+            const tbody = document.getElementById('reclaim-tbody');
+            tbody.innerHTML = '';
+
+            if (bags.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="py-8 text-gray-400 italic text-center">No matching bag records found.</td></tr>`;
+                return;
+            }
+
+            const displayBags = bags.slice(0, currentTableLimit);
+            const fragment = document.createDocumentFragment();
+
+            displayBags.forEach(bag => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
+                
+                const hourValue = bag.hourBeforeStdNum;
+                let hourTextColor = 'text-gray-800 font-bold';
+                
+                if (hourValue !== null) {
+                    if (hourValue < 0) {
+                        hourTextColor = 'text-red-600 font-bold';
+                    } else if (hourValue <= 1) {
+                        hourTextColor = 'text-yellow-600 font-bold';
+                    } else {
+                        hourTextColor = 'text-green-600 font-bold';
+                    }
+                }
+                
+                const formattedStd = stripSecondsFromDate(bag.std);
+                const formattedHourBeforeStd = formatDecimalToHHmm(bag.hourBeforeStdNum);
+
+                tr.innerHTML = `
+                    <td class="font-mono font-semibold text-center" title="${bag.eventTime}">${bag.eventTime}</td>
+                    <td class="font-bold w-24 flight-cell cursor-pointer text-blue-600 hover:text-blue-800 text-center" 
+                        data-flight="${bag.flight}" 
+                        data-std="${bag.std}" 
+                        data-dispatch="${bag.eventTime}" 
+                        data-chute="${bag.chute}" 
+                        data-gh="${bag.groundHandler}">
+                        ${bag.flight}
+                    </td>
+                    <td class="font-mono text-center" title="${formattedStd}">${formattedStd}</td>
+                    <td class="font-mono font-bold text-gray-900 text-center" title="${bag.bagTagId}">${bag.bagTagId}</td>
+                    <td class="text-center" title="${bag.rummage}">${bag.rummage}</td>
+                    <td class="font-semibold text-blue-600 text-center" title="${bag.rummageArea}">${bag.rummageArea}</td>
+                    <td class="text-center" title="${bag.reason}">${bag.reason}</td>
+                    <td class="text-center" title="${bag.chute}">${bag.chute}</td>
+                    <td class="text-center" title="${bag.groundHandler}">${bag.groundHandler}</td>
+                    <td class="font-mono ${hourTextColor} text-center" title="${bag.hourBeforeStd}">${formattedHourBeforeStd}</td>
+                `;
+                fragment.appendChild(tr);
+            });
+            
+            if (bags.length > currentTableLimit) {
+                 const tr = document.createElement('tr');
+                 tr.innerHTML = `
+                 <td colspan="10" class="py-4 text-center bg-gray-50">
+                     <button id="btn-load-more-rows" class="px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 font-bold rounded hover:bg-blue-100 transition text-xs shadow-sm focus:outline-none">
+                         Load Next 500 Rows (Showing ${currentTableLimit} of ${bags.length})
+                     </button>
+                 </td>`;
+                 fragment.appendChild(tr);
+            }
+
+            tbody.appendChild(fragment);
+
+            const loadMoreBtn = document.getElementById('btn-load-more-rows');
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', () => {
+                    currentTableLimit += 500;
+                    renderTable(currentFilteredBags);
+                });
+            }
+        }
+
+        function resetFilters() {
+            setDefaultDateFilters();
+            
+            flightSearchInput.value = '';
+            document.querySelectorAll('.flight-item').forEach(item => item.style.display = 'block');
+
+            filterState = { flight: ['ALL'], reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
+            updateFlightUI();
+
+            document.getElementById('text-reason').textContent = 'All Reasons';
+            document.getElementById('text-handler').textContent = 'All GH';
+            document.getElementById('text-reclaim').textContent = 'All Areas';
+            populateFilterDropdowns(); 
+
+            document.getElementById('slicer-search-bag').value = '';
+            document.getElementById('slicer-interval').value = 'hourly';
+            
+            triggerFilters();
+        }
+
         // Helper: Fetch and Parse Parquet natively using hyparquet via jsdelivr +esm
         async function parseParquet(url) {
             try {
-                // By using +esm, jsDelivr automatically bundles the module and provides the named exports correctly
                 const { parquetRead } = await import('https://cdn.jsdelivr.net/npm/hyparquet/+esm');
                 
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const arrayBuffer = await response.arrayBuffer();
                 
-                // Wrap ArrayBuffer into hyparquet's expected AsyncBuffer structure
                 const asyncBuffer = {
                     byteLength: arrayBuffer.byteLength,
                     slice: (start, end) => arrayBuffer.slice(start, end)
                 };
                 
-                // Read and extract data into a Promise that resolves to an array of row objects
                 return new Promise((resolve, reject) => {
                     try {
                         parquetRead({
@@ -2183,7 +2081,6 @@
             }
         }
 
-        // Helper: Isolate date combining logic to use for both datasets
         function getCombinedEventTime(row) {
             let rawEvent = getRawValue(row, ['EVENT', 'EVENTTIME', 'EVENT TIME', 'EVENT_TIME', 'DATE', 'EVENT DATE']);
             let parsedDt = normalizeDate(rawEvent);
@@ -2199,13 +2096,11 @@
             return parsedDt ? parsedDt.getTime() : 0;
         }
 
-        // 1. Build a lookup map holding the "First/Earliest" CHUTE per BAGTAGID
         function buildChuteLookup(chuteData) {
             const lookup = new Map();
             
             if (!chuteData || chuteData.length === 0) return lookup;
             
-            // Provide exact column names mapped to the row arrays if hyparquet returns arrays instead of objects
             chuteData.forEach(row => {
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
                 if (bagTag === '-' || !bagTag) return;
@@ -2215,7 +2110,6 @@
 
                 if (chute === '-') return;
 
-                // Only store if it's the first time seeing it, OR if this timestamp is earlier than the stored one
                 if (!lookup.has(bagTag)) {
                     lookup.set(bagTag, { timestamp: ts, chute: chute });
                 } else {
@@ -2228,7 +2122,6 @@
             return lookup;
         }
 
-        // 2. Merge the targeted "First Chute" into the Main Data for "OPEN" bags
         function mergeChuteData(mainData, chuteLookup) {
             if (!mainData || mainData.length === 0) return [];
             
@@ -2236,12 +2129,10 @@
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
                 const reason = String(getRawValue(row, ['REASON', 'RUMMAGE REASON'])).trim().toUpperCase();
 
-                // Condition: Only apply mapping to OPEN reasons
                 if (reason === 'OPEN' && chuteLookup.has(bagTag)) {
                     const firstChute = chuteLookup.get(bagTag).chute;
                     
                     if (firstChute && firstChute !== '-') {
-                        // Find the exact key string the main data uses for CHUTE to overwrite it seamlessly
                         let keyFound = false;
                         for (let k of Object.keys(row)) {
                             const upperK = k.replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -2252,7 +2143,7 @@
                             }
                         }
                         if (!keyFound) {
-                            row['CHUTE'] = firstChute; // Fallback assignment
+                            row['CHUTE'] = firstChute;
                         }
                     }
                 }
@@ -2260,13 +2151,11 @@
             });
         }
 
-        // Main Execution Pipeline
         async function loadDataFiles() {
             const overlay = document.getElementById('loading-overlay');
             overlay.classList.remove('hidden');
 
             try {
-                // Fetch both datasets concurrently
                 const [mainData, chuteData] = await Promise.all([
                     parseParquet("data.parquet"),
                     parseParquet("chute.parquet")
@@ -2278,13 +2167,9 @@
                     return;
                 }
 
-                // Apply Logic Step 1: Create earliest-event mapping from Chute File
                 const chuteLookup = buildChuteLookup(chuteData);
-
-                // Apply Logic Step 2: Merge the earliest chute back into main dataset
                 const mergedData = mergeChuteData(mainData, chuteLookup);
 
-                // Pass merged data to your existing render pipeline
                 processBagEntities(mergedData);
                 setDefaultDateFilters();
                 populateFilterDropdowns();
@@ -2303,7 +2188,22 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', loadDataFiles);
+        // DOM ATTACHMENTS (Guaranteed to execute AFTER functions are declared)
+        document.addEventListener('DOMContentLoaded', () => {
+            const filterIds = ['filter-start-date', 'filter-end-date', 'slicer-interval', 'rummage-sort'];
+            filterIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', triggerFilters);
+            });
+
+            const searchBag = document.getElementById('slicer-search-bag');
+            if (searchBag) searchBag.addEventListener('input', triggerFilters);
+
+            const resetBtn = document.getElementById('reset-filters');
+            if (resetBtn) resetBtn.addEventListener('click', resetFilters);
+
+            loadDataFiles();
+        });
     </script>
 <script>
   if ('serviceWorker' in navigator) {
