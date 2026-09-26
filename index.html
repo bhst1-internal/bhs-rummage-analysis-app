@@ -3239,9 +3239,11 @@
         // Helper: Fetch and Parse Parquet using WebAssembly and Apache Arrow
         async function parseParquet(url) {
             try {
-                // Dynamically import parquet-wasm and initialize it
-                const parquetWasm = await import('https://unpkg.com/parquet-wasm@0.6.1/esm/arrow1.js');
-                await parquetWasm.default();
+                // 1. Switched from unpkg to jsdelivr to bypass potential IT firewall blocks
+                const parquetWasm = await import('https://cdn.jsdelivr.net/npm/parquet-wasm@0.6.1/esm/arrow1.js');
+                
+                // 2. Explicitly define the WASM binary URL so the browser doesn't search for it locally
+                await parquetWasm.default('https://cdn.jsdelivr.net/npm/parquet-wasm@0.6.1/esm/arrow1_bg.wasm');
                 
                 // Dynamically import Apache Arrow JS
                 const apacheArrow = await import('https://cdn.jsdelivr.net/npm/apache-arrow@14.0.0/+esm');
