@@ -4,7 +4,8 @@
 	<link rel="manifest" href="manifest.json">
 	<meta name="theme-color" content="#1f2937">
 	<link rel="apple-touch-icon" href="icon-192.png">
-	<meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- Replaced deprecated apple tag with modern mobile-web-app tag -->
+	<meta name="mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3236,28 +3237,26 @@
         // NEW MULTI-DATASET MERGING LOGIC (data.parquet & chute.parquet)
         // -------------------------------------------------------------
 
-        // Helper: Fetch and Parse Parquet using WebAssembly and Apache Arrow
+        // Helper: Fetch and Parse Parquet natively using hyparquet (No WASM)
         async function parseParquet(url) {
             try {
-                // 1. Switched from unpkg to jsdelivr to bypass potential IT firewall blocks
-                const parquetWasm = await import('https://cdn.jsdelivr.net/npm/parquet-wasm@0.6.1/esm/arrow1.js');
+                // Dynamically import pure javascript parquet reader
+                const { parquetReadObjects } = await import('https://cdn.jsdelivr.net/npm/hyparquet@1.28.1/src/hyparquet.min.js');
                 
-                // 2. Explicitly define the WASM binary URL so the browser doesn't search for it locally
-                await parquetWasm.default('https://cdn.jsdelivr.net/npm/parquet-wasm@0.6.1/esm/arrow1_bg.wasm');
-                
-                // Dynamically import Apache Arrow JS
-                const apacheArrow = await import('https://cdn.jsdelivr.net/npm/apache-arrow@14.0.0/+esm');
-
+                // Fetch the file as an ArrayBuffer
                 const response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const arrayBuffer = await response.arrayBuffer();
                 
-                // Decode Parquet buffer into Arrow IPC format, then to an Arrow Table
-                const wasmTable = parquetWasm.readParquet(new Uint8Array(arrayBuffer));
-                const table = apacheArrow.tableFromIPC(wasmTable);
+                // Wrap the ArrayBuffer in a file-like object that hyparquet expects
+                const file = {
+                    byteLength: arrayBuffer.byteLength,
+                    slice: (start, end) => arrayBuffer.slice(start, end)
+                };
                 
-                // Convert tabular data into a standard row-based JSON array for the dashboard
-                return table.toArray().map(row => row.toJSON());
+                // Read and extract data into row-based JSON arrays
+                const data = await parquetReadObjects({ file });
+                return data;
             } catch (err) {
                 console.warn(`Could not load ${url}. Proceeding without it...`, err);
                 return []; // Return empty if missing so dashboard doesn't crash completely
