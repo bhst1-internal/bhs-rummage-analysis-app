@@ -16,9 +16,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Plotly.js for Charts -->
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
-	<!-- ADD PAPAPARSE FOR FAST CSV LOADING -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- ADD HTML2CANVAS FOR SECTION SCREENSHOTS -->
+    <!-- HTML2CANVAS FOR SECTION SCREENSHOTS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
@@ -1385,7 +1383,6 @@
             }, 350);
         };
 
-        // --- NEW EVENT LISTENERS FOR MODAL FLIGHT HOVER TOOLTIP ---
         const simSummaryTbody = document.getElementById('sim-summary-tbody');
         const modalFlightTooltip = document.getElementById('modal-flight-tooltip');
         const modalFlightTooltipContent = document.getElementById('modal-flight-tooltip-content');
@@ -1483,7 +1480,6 @@
                 };
             }
 
-            // Build dynamic text and marker sizes to create perfectly centered "badges"
             const lorryText = [];
             const trolleyText = [];
             const lorryMarkerSizes = [];
@@ -1495,22 +1491,21 @@
                 
                 if (l > 0) {
                     lorryText.push(`<b>${l}</b>`);
-                    lorryMarkerSizes.push(18); // Size of the circular badge
+                    lorryMarkerSizes.push(18); 
                 } else {
                     lorryText.push('');
-                    lorryMarkerSizes.push(0); // Hide marker/label
+                    lorryMarkerSizes.push(0); 
                 }
                 
                 if (t > 0 && t !== l) {
                     trolleyText.push(`<b>${t}</b>`);
-                    trolleyMarkerSizes.push(18); // Size of the circular badge
+                    trolleyMarkerSizes.push(18); 
                 } else {
                     trolleyText.push('');
-                    trolleyMarkerSizes.push(0); // Hide marker/label if 0 or overlapping
+                    trolleyMarkerSizes.push(0); 
                 }
             }
 
-            // Additional traces for the Transports Count (Secondary Top Chart) -> Line Charts with Centered Badges
             const trace3 = {
                 x: times, y: lorryCounts, name: 'Lorry (Transport)',
                 type: 'scatter', mode: 'lines+markers+text', yaxis: 'y2',
@@ -1561,14 +1556,14 @@
                 yaxis: { 
                     title: { text: 'Bags Processed', standoff: 15 },
                     tickfont: { size: 11 },
-                    domain: [0, 0.65] // Bottom 65% of the chart area for Bags
+                    domain: [0, 0.65]
                 },
                 yaxis2: { 
                     title: { text: 'Transports', standoff: 15 },
                     tickfont: { size: 11 },
-                    domain: [0.75, 1], // Top 25% of the chart area for Transports
-                    tickformat: 'd',   // Ensure whole numbers only
-                    rangemode: 'tozero' // Ensure line chart starts at 0
+                    domain: [0.75, 1], 
+                    tickformat: 'd',   
+                    rangemode: 'tozero'
                 },
                 legend: { orientation: 'h', yanchor: 'bottom', y: 1.02, xanchor: 'right', x: 1 },
                 hovermode: 'x unified',
@@ -3238,25 +3233,33 @@
         }
 
         // -------------------------------------------------------------
-        // NEW MULTI-DATASET MERGING LOGIC (data.csv & chute.csv)
+        // NEW MULTI-DATASET MERGING LOGIC (data.parquet & chute.parquet)
         // -------------------------------------------------------------
 
-        // Helper: Convert PapaParse to return a Promise
-        function parseCSV(url) {
-            return new Promise((resolve) => {
-                Papa.parse(url, {
-                    download: true,
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function(results) {
-                        resolve(results.data);
-                    },
-                    error: function(err) {
-                        console.warn(`Could not load ${url}. Proceeding without it...`, err);
-                        resolve([]); // Return empty if missing so dashboard doesn't crash completely
-                    }
-                });
-            });
+        // Helper: Fetch and Parse Parquet using WebAssembly and Apache Arrow
+        async function parseParquet(url) {
+            try {
+                // Dynamically import parquet-wasm and initialize it
+                const parquetWasm = await import('https://unpkg.com/parquet-wasm@0.6.1/esm/arrow1.js');
+                await parquetWasm.default();
+                
+                // Dynamically import Apache Arrow JS
+                const apacheArrow = await import('https://cdn.jsdelivr.net/npm/apache-arrow@14.0.0/+esm');
+
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const arrayBuffer = await response.arrayBuffer();
+                
+                // Decode Parquet buffer into Arrow IPC format, then to an Arrow Table
+                const wasmTable = parquetWasm.readParquet(new Uint8Array(arrayBuffer));
+                const table = apacheArrow.tableFromIPC(wasmTable);
+                
+                // Convert tabular data into a standard row-based JSON array for the dashboard
+                return table.toArray().map(row => row.toJSON());
+            } catch (err) {
+                console.warn(`Could not load ${url}. Proceeding without it...`, err);
+                return []; // Return empty if missing so dashboard doesn't crash completely
+            }
         }
 
         // Helper: Isolate date combining logic to use for both datasets
@@ -3345,12 +3348,12 @@
             try {
                 // Fetch both datasets concurrently
                 const [mainData, chuteData] = await Promise.all([
-                    parseCSV("data.csv"),
-                    parseCSV("chute.csv")
+                    parseParquet("data.parquet"),
+                    parseParquet("chute.parquet")
                 ]);
 
                 if (mainData.length === 0) {
-                    alert("Could not load data.csv. Please ensure it is uploaded to your repository.");
+                    alert("Could not load data.parquet. Please ensure it is uploaded to your repository.");
                     overlay.classList.add('hidden');
                     return;
                 }
