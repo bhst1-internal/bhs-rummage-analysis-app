@@ -914,6 +914,10 @@
             });
         }
 
+        function triggerFilters() {
+            setTimeout(() => { applyFiltersAndRender(); }, 10);
+        }
+
         function setDefaultDateFilters() {
             let maxDate = '';
             bagDataset.forEach(bag => {
@@ -2033,7 +2037,8 @@
         function resetFilters() {
             setDefaultDateFilters();
             
-            flightSearchInput.value = '';
+            const flightSearchInput = document.getElementById('flight-search-input');
+            if (flightSearchInput) flightSearchInput.value = '';
             document.querySelectorAll('.flight-item').forEach(item => item.style.display = 'block');
 
             filterState = { flight: ['ALL'], reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
@@ -2153,7 +2158,7 @@
 
         async function loadDataFiles() {
             const overlay = document.getElementById('loading-overlay');
-            overlay.classList.remove('hidden');
+            if (overlay) overlay.classList.remove('hidden');
 
             try {
                 const [mainData, chuteData] = await Promise.all([
@@ -2163,7 +2168,7 @@
 
                 if (mainData.length === 0) {
                     alert("Could not load data.parquet. Please ensure it is uploaded to your repository.");
-                    overlay.classList.add('hidden');
+                    if (overlay) overlay.classList.add('hidden');
                     return;
                 }
 
@@ -2184,7 +2189,7 @@
                 console.error("Data Processing Error:", err);
                 alert("An error occurred while merging the data files.");
             } finally {
-                overlay.classList.add('hidden');
+                if (overlay) overlay.classList.add('hidden');
             }
         }
 
