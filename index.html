@@ -3346,7 +3346,7 @@
             return '-';
         }
 
-        // 1. Build a lookup map holding the "First/Earliest" CHUTE per BAGTAGID
+        // 1. Build a lookup map holding all 'TRA' (Transport) events per BAGTAGID, sorted by time
         function buildChuteLookup(chuteData) {
             const lookup = new Map();
             
@@ -3354,27 +3354,34 @@
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
                 if (bagTag === '-' || !bagTag) return;
 
+                // Look specifically for the TRA status
+                const status = String(getRawValue(row, ['STATUS'])).trim().toUpperCase();
+                if (status !== 'TRA') return;
+
                 const combinedTime = getCombinedEventTime(row);
                 const parsedDt = parseCustomDateToJS(combinedTime);
                 const ts = parsedDt ? parsedDt.getTime() : 0;
                 const chute = getRawValue(row, ['CHUTE', 'CHUTE ID', 'CHUTE_ID']);
 
-                if (chute === '-') return;
+                if (chute === '-' || ts === 0) return;
 
-                // Only store if it's the first time seeing it, OR if this timestamp is earlier than the stored one
                 if (!lookup.has(bagTag)) {
-                    lookup.set(bagTag, { timestamp: ts, chute: chute });
-                } else {
-                    const existing = lookup.get(bagTag);
-                    if (ts > 0 && ts < existing.timestamp) {
-                        lookup.set(bagTag, { timestamp: ts, chute: chute });
-                    }
+                    lookup.set(bagTag, []);
                 }
+                
+                // Push all valid TRA events for this bag
+                lookup.get(bagTag).push({ timestamp: ts, chute: chute });
             });
+
+            // Sort each bag's TRA events descending (newest first) for efficient closest-time matching
+            lookup.forEach((events, bagTag) => {
+                events.sort((a, b) => b.timestamp - a.timestamp);
+            });
+
             return lookup;
         }
 
-        // 2. Merge the targeted "First Chute" into the Main Data for "OPEN" bags
+        // 2. Merge the closest preceding "TRA" Chute into the Main Data for "OPEN" bags
         function mergeChuteData(mainData, chuteLookup) {
             return mainData.map(row => {
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
@@ -3382,21 +3389,43 @@
 
                 // Condition: Only apply mapping to OPEN reasons
                 if (reason === 'OPEN' && chuteLookup.has(bagTag)) {
-                    const firstChute = chuteLookup.get(bagTag).chute;
+                    // Calculate the timestamp of the DIS event from the main data
+                    const combinedTime = getCombinedEventTime(row);
+                    const parsedDt = parseCustomDateToJS(combinedTime);
+                    const disTs = parsedDt ? parsedDt.getTime() : 0;
                     
-                    if (firstChute && firstChute !== '-') {
+                    const traEvents = chuteLookup.get(bagTag);
+                    let assignedChute = null;
+
+                    // Find the closest TRA event that occurred BEFORE or AT the same time as the DIS event
+                    if (disTs > 0) {
+                        for (let tra of traEvents) {
+                            if (tra.timestamp <= disTs) {
+                                assignedChute = tra.chute;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Fallback: If time parsing fails or there is an anomalous time discrepancy, 
+                    // default to the most recent TRA event available for that bag.
+                    if (!assignedChute && traEvents.length > 0) {
+                        assignedChute = traEvents[0].chute;
+                    }
+                    
+                    if (assignedChute && assignedChute !== '-') {
                         // Find the exact key string the main data uses for CHUTE to overwrite it seamlessly
                         let keyFound = false;
                         for (let k of Object.keys(row)) {
                             const upperK = k.replace(/[^A-Z0-9]/gi, '').toUpperCase();
                             if (upperK === 'CHUTE' || upperK === 'CHUTEID') {
-                                row[k] = firstChute;
+                                row[k] = assignedChute;
                                 keyFound = true;
                                 break;
                             }
                         }
                         if (!keyFound) {
-                            row['CHUTE'] = firstChute; // Fallback assignment
+                            row['CHUTE'] = assignedChute; // Fallback assignment
                         }
                     }
                 }
