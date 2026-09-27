@@ -3237,7 +3237,7 @@
         }
 
         // -------------------------------------------------------------
-        // NEW MULTI-DATASET MERGING LOGIC (data.xlsb & chute.xlsb)
+        // NEW MULTI-DATASET MERGING LOGIC (data.xlsx & chute.xlsx)
         // -------------------------------------------------------------
 
         // Helper: Fetch Excel file as ArrayBuffer and parse via SheetJS
@@ -3246,9 +3246,9 @@
                 console.log(`[DEBUG] Attempting to fetch: ${url}`);
                 let response = await fetch(url);
                 
-                // If .xlsb fails, try fetching .xlsx automatically (to make switching easy for you)
-                if (!response.ok && url.endsWith('.xlsb')) {
-                    const fallbackUrl = url.replace('.xlsb', '.xlsx');
+                // If the primary fetch fails, try an alternative extension
+                if (!response.ok) {
+                    const fallbackUrl = url.endsWith('.xlsx') ? url.replace('.xlsx', '.xlsb') : url.replace('.xlsb', '.xlsx');
                     console.log(`[DEBUG] ${url} not found. Trying fallback: ${fallbackUrl}`);
                     response = await fetch(fallbackUrl);
                     url = fallbackUrl;
@@ -3274,11 +3274,17 @@
                     const sheetName = workbook.SheetNames[i];
                     const worksheet = workbook.Sheets[sheetName];
                     
-                    // 1. Manually count actual cells in memory to see if SheetJS decoded the binary successfully
+                    // SAFETY CHECK: Skip if SheetJS completely failed to parse this sheet
+                    if (!worksheet) {
+                        console.warn(`[WARNING] Sheet "${sheetName}" could not be parsed. Skipping.`);
+                        continue;
+                    }
+                    
+                    // 1. Manually count actual cells in memory
                     const cellKeys = Object.keys(worksheet).filter(k => k[0] !== '!');
                     console.log(`[DEBUG] Sheet "${sheetName}" contains ${cellKeys.length} raw cells in memory.`);
 
-                    // 2. If cells exist but the internal dimension (!ref) is broken, sheet_to_json returns 0 rows. Let's force-fix it.
+                    // 2. Fix broken internal dimensions
                     if (cellKeys.length > 0 && (!worksheet['!ref'] || worksheet['!ref'] === 'A1')) {
                         console.warn(`[WARNING] Dimensions missing for "${sheetName}". Rebuilding manually...`);
                         let maxRow = 1;
@@ -3289,7 +3295,7 @@
                                 if (row > maxRow) maxRow = row;
                             }
                         });
-                        worksheet['!ref'] = `A1:ZZ${maxRow}`; // Force bounds
+                        worksheet['!ref'] = `A1:ZZ${maxRow}`;
                     }
 
                     const data = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
@@ -3394,14 +3400,14 @@
             overlay.classList.remove('hidden');
 
             try {
-                // Fetch both XLSB datasets concurrently using relative paths
+                // Fetch both XLSX datasets concurrently using relative paths
                 const [mainData, chuteData] = await Promise.all([
-                    parseXLSB("./data.xlsb"),
-                    parseXLSB("./chute.xlsb")
+                    parseXLSB("./data.xlsx"),
+                    parseXLSB("./chute.xlsx")
                 ]);
 
                 if (mainData.length === 0) {
-                    alert("Could not load data.xlsb or data.xlsx. Please ensure it is uploaded to your repository without Git LFS and is named correctly.");
+                    alert("Could not load data.xlsx. Please ensure it is uploaded to your repository without Git LFS and is named correctly.");
                     overlay.classList.add('hidden');
                     return;
                 }
