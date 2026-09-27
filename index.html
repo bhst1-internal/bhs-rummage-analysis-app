@@ -53,6 +53,10 @@
             background: #3b82f6 linear-gradient(0deg, #3b82f6 0%, #3b82f6 100%);
             color: white;
         }
+
+        /* Grab cursor for table pan */
+        .cursor-grab { cursor: grab; }
+        .cursor-grabbing { cursor: grabbing; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans text-gray-800 pb-12">
@@ -272,7 +276,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                         Timeline Data Breakdown
                     </h3>
-                    <div class="overflow-x-auto rounded border border-gray-200 shadow-sm sim-scroll">
+                    <div id="timelineScrollArea" class="overflow-x-auto rounded border border-gray-200 shadow-sm sim-scroll cursor-grab">
                         <table class="w-full text-left border-collapse relative table-fixed-layout">
                             <thead id="timelineThead">
                                 <!-- Populated by JS -->
@@ -835,6 +839,13 @@
             const btnOrigDisplay = btnGroup.style.display;
             btnGroup.style.display = 'none';
 
+            // Remove sticky positioning temporarily so screenshot renderer doesn't overlay "Total" column over data cells
+            const stickyEls = Array.from(section.querySelectorAll('.sticky'));
+            const originalClasses = stickyEls.map(el => el.className);
+            stickyEls.forEach(el => {
+                el.classList.remove('sticky', 'left-0', 'right-0', 'z-30', 'z-20', 'z-10');
+            });
+
             // Save original styles before overriding for full capture
             const origSectionWidth = section.style.width;
             const origTableOverflow = tableScrollDiv ? tableScrollDiv.style.overflowX : '';
@@ -858,6 +869,8 @@
             }).then(canvas => {
                 // Restore UI immediately
                 btnGroup.style.display = btnOrigDisplay;
+                stickyEls.forEach((el, index) => { el.className = originalClasses[index]; });
+                
                 if (isTimelineTableExpanded) {
                     if (tableScrollDiv) tableScrollDiv.style.overflowX = origTableOverflow;
                     modalBody.style.overflow = origModalBodyOverflow;
@@ -875,6 +888,8 @@
                 
                 // Fallback restore
                 btnGroup.style.display = btnOrigDisplay;
+                stickyEls.forEach((el, index) => { el.className = originalClasses[index]; });
+                
                 if (isTimelineTableExpanded) {
                     if (tableScrollDiv) tableScrollDiv.style.overflowX = origTableOverflow;
                     modalBody.style.overflow = origModalBodyOverflow;
@@ -884,6 +899,42 @@
                 alert('Failed to generate image. Please check console for details.');
             });
         }
+
+        // --- ADD PANNING FEATURE TO TIMELINE TABLE ---
+        document.addEventListener('DOMContentLoaded', () => {
+            const scrollArea = document.getElementById('timelineScrollArea');
+            if (scrollArea) {
+                let isDown = false;
+                let startX;
+                let scrollLeft;
+
+                scrollArea.addEventListener('mousedown', (e) => {
+                    isDown = true;
+                    scrollArea.classList.add('cursor-grabbing');
+                    scrollArea.classList.remove('cursor-grab');
+                    startX = e.pageX - scrollArea.offsetLeft;
+                    scrollLeft = scrollArea.scrollLeft;
+                });
+                scrollArea.addEventListener('mouseleave', () => {
+                    isDown = false;
+                    scrollArea.classList.remove('cursor-grabbing');
+                    scrollArea.classList.add('cursor-grab');
+                });
+                scrollArea.addEventListener('mouseup', () => {
+                    isDown = false;
+                    scrollArea.classList.remove('cursor-grabbing');
+                    scrollArea.classList.add('cursor-grab');
+                });
+                scrollArea.addEventListener('mousemove', (e) => {
+                    if (!isDown) return;
+                    e.preventDefault();
+                    const x = e.pageX - scrollArea.offsetLeft;
+                    const walk = (x - startX) * 2; // adjust scroll speed
+                    scrollArea.scrollLeft = scrollLeft - walk;
+                });
+            }
+        });
+        // ---------------------------------------------
 
         function renderTimelineTable(bags) {
             const thead = document.getElementById('timelineThead');
@@ -3149,7 +3200,10 @@
                 return;
             }
 
-            const displayBags = bags.slice(0, currentTableLimit);
+            // MODIFIED: Sort table globally by timestamp (EVENT TIME) ascending
+            const sortedBags = [...bags].sort((a, b) => a.timestamp - b.timestamp);
+
+            const displayBags = sortedBags.slice(0, currentTableLimit);
             const fragment = document.createDocumentFragment();
 
             displayBags.forEach(bag => {
@@ -3194,12 +3248,12 @@
                 fragment.appendChild(tr);
             });
             
-            if (bags.length > currentTableLimit) {
+            if (sortedBags.length > currentTableLimit) {
                  const tr = document.createElement('tr');
                  tr.innerHTML = `
                  <td colspan="10" class="py-4 text-center bg-gray-50">
                      <button id="btn-load-more-rows" class="px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 font-bold rounded hover:bg-blue-100 transition text-xs shadow-sm focus:outline-none">
-                         Load Next 500 Rows (Showing ${currentTableLimit} of ${bags.length})
+                         Load Next 500 Rows (Showing ${currentTableLimit} of ${sortedBags.length})
                      </button>
                  </td>`;
                  fragment.appendChild(tr);
