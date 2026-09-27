@@ -3408,7 +3408,7 @@
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
                 if (bagTag === '-' || !bagTag) return;
 
-                // Look specifically for the TRA status
+                // Strictly capture only TRA (Planned) statuses from the secondary dataset
                 const status = String(getRawValue(row, ['STATUS'])).trim().toUpperCase();
                 if (status !== 'TRA') return;
 
@@ -3440,35 +3440,43 @@
             return mainData.map(row => {
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
                 const reason = String(getRawValue(row, ['REASON', 'RUMMAGE REASON'])).trim().toUpperCase();
+                
+                // Ensure the event from data.xlsx is specifically a DIS event 
+                // (If STATUS column is missing in data.xlsx, we assume all rows are DIS based on your context)
+                const status = String(getRawValue(row, ['STATUS'])).trim().toUpperCase();
+                const isDisEvent = status === 'DIS' || status === '-'; 
 
-                // Condition: Only apply mapping to OPEN reasons
-                if (reason === 'OPEN' && chuteLookup.has(bagTag)) {
-                    // Calculate the timestamp of the DIS event from the main data
+                // Condition: Only apply mapping to OPEN reasons that are Dispatched (DIS)
+                if (reason === 'OPEN' && isDisEvent && chuteLookup.has(bagTag)) {
+                    
                     const combinedTime = getCombinedEventTime(row);
                     const parsedDt = parseCustomDateToJS(combinedTime);
-                    const disTs = parsedDt ? parsedDt.getTime() : 0;
+                    const disTs = parsedDt ? parsedDt.getTime() : 0; // The exact DIS Event Time
                     
                     const traEvents = chuteLookup.get(bagTag);
                     let assignedChute = null;
 
-                    // Find the closest TRA event that occurred BEFORE or AT the same time as the DIS event
                     if (disTs > 0) {
+                        // Time bound: "Same date or previous date" roughly equals a maximum 48-hour gap
+                        // This prevents falsely mapping a TRA event from a reused bag tag a week ago.
+                        const maxTimeDiffMs = 48 * 60 * 60 * 1000; 
+
+                        // Find the closest TRA event that occurred BEFORE or AT the DIS time, within the time bound
                         for (let tra of traEvents) {
-                            if (tra.timestamp <= disTs) {
+                            if (tra.timestamp <= disTs && (disTs - tra.timestamp) <= maxTimeDiffMs) {
                                 assignedChute = tra.chute;
                                 break;
                             }
                         }
                     }
 
-                    // Fallback: If time parsing fails or there is an anomalous time discrepancy, 
-                    // default to the most recent TRA event available for that bag.
-                    if (!assignedChute && traEvents.length > 0) {
+                    // Fallback: If timestamps fail to parse but TRA events exist, use the most recent one
+                    if (!assignedChute && traEvents.length > 0 && disTs === 0) {
                         assignedChute = traEvents[0].chute;
                     }
                     
+                    // Overwrite the specific CHUTE column with the planned Assigned Chute
                     if (assignedChute && assignedChute !== '-') {
-                        // Find the exact key string the main data uses for CHUTE to overwrite it seamlessly
                         let keyFound = false;
                         for (let k of Object.keys(row)) {
                             const upperK = k.replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -3479,7 +3487,7 @@
                             }
                         }
                         if (!keyFound) {
-                            row['CHUTE'] = assignedChute; // Fallback assignment
+                            row['CHUTE'] = assignedChute; // Fallback injection
                         }
                     }
                 }
