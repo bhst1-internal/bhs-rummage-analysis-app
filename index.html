@@ -3243,10 +3243,22 @@
         // Helper: Fetch XLSB as ArrayBuffer and parse via SheetJS
         async function parseXLSB(url) {
             try {
+                console.log(`[DEBUG] Attempting to fetch: ${url}`);
                 const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                console.log(`[DEBUG] HTTP Status for ${url}: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status} (File might be missing or path is wrong)`);
+                }
                 
                 const arrayBuffer = await response.arrayBuffer();
+                console.log(`[DEBUG] Downloaded ${url} - Size: ${arrayBuffer.byteLength} bytes`);
+                
+                // Check if it's a Git LFS pointer (usually around 130 bytes)
+                if (arrayBuffer.byteLength < 500) {
+                    console.warn(`[WARNING] ${url} is suspiciously small (${arrayBuffer.byteLength} bytes). This is almost certainly a Git LFS text pointer, NOT your actual Excel file.`);
+                }
+
                 // Read the binary data
                 const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
                 
@@ -3254,11 +3266,14 @@
                 const firstSheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[firstSheetName];
                 
-                // Convert to array of objects (matching PapaParse's header:true output)
-                return XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
+                // Convert to array of objects
+                const data = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
+                console.log(`[DEBUG] Successfully parsed ${data.length} rows from ${url}`);
+                return data;
+                
             } catch (err) {
-                console.warn(`Could not load ${url}. Proceeding without it...`, err);
-                return []; // Return empty if missing so dashboard doesn't crash completely
+                console.error(`[ERROR] Failed to process ${url}:`, err);
+                return []; // Return empty array on failure
             }
         }
 
