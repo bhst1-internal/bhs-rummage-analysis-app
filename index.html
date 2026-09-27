@@ -4,7 +4,8 @@
 	<link rel="manifest" href="manifest.json">
 	<meta name="theme-color" content="#1f2937">
 	<link rel="apple-touch-icon" href="icon-192.png">
-	<meta name="apple-mobile-web-app-capable" content="yes">
+    <!-- Updated Mobile Web App Meta Tag -->
+	<meta name="mobile-web-app-capable" content="yes">
 	<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -3345,14 +3346,14 @@
             overlay.classList.remove('hidden');
 
             try {
-                // Fetch both XLSB datasets concurrently
+                // Fetch both XLSB datasets concurrently using relative paths
                 const [mainData, chuteData] = await Promise.all([
-                    parseXLSB("data.xlsb"),
-                    parseXLSB("chute.xlsb")
+                    parseXLSB("./data.xlsb"),
+                    parseXLSB("./chute.xlsb")
                 ]);
 
                 if (mainData.length === 0) {
-                    alert("Could not load data.xlsb. Please ensure it is uploaded to your repository.");
+                    alert("Could not load data.xlsb. Please ensure it is uploaded to your repository without Git LFS and is named in exact lowercase.");
                     overlay.classList.add('hidden');
                     return;
                 }
