@@ -1546,134 +1546,96 @@
         setupDropdownToggle('btn-handler', 'menu-handler');
         setupDropdownToggle('btn-reclaim', 'menu-reclaim');
 
-        function generateTrips() {
-            generatedTrips = [];
-            if(simEntries.length === 0) return;
-            const valLoad = parseFloat(document.getElementById('sim-f-load').value) || 0;
-            const valUnload = parseFloat(document.getElementById('sim-f-unload').value) || 0;
-            const valEff = parseFloat(document.getElementById('sim-f-eff').value) || 100;
-            const valMM = parseFloat(document.getElementById('sim-f-mm').value) || 0;
-            const valSS = parseFloat(document.getElementById('sim-f-ss').value) || 0;
-            const valMS = parseFloat(document.getElementById('sim-f-ms').value) || 0;
-            const intervalType = document.getElementById('slicer-interval').value;
+        // Restore Missing Date Parsing Helper Block
+        function parseHourString(timeStr) {
+            if (timeStr === undefined || timeStr === null || timeStr === '') return null;
+            const str = String(timeStr).trim();
+            if (str === '-') return null;
+            
+            let isNegative = str.startsWith('-');
+            let cleanStr = isNegative ? str.substring(1) : str;
+            
+            if (cleanStr.includes(':')) {
+                let parts = cleanStr.split(':');
+                let h = parseInt(parts[0], 10) || 0;
+                let m = parseInt(parts[1], 10) || 0;
+                let decimal = h + (m / 60);
+                return isNegative ? -decimal : decimal;
+            }
+            let num = parseFloat(str);
+            return isNaN(num) ? null : num;
+        }
 
-            const entriesByTime = {};
-            simEntries.forEach(e => {
-                if(!entriesByTime[e.time]) entriesByTime[e.time] = [];
-                entriesByTime[e.time].push(e);
-            });
+        function stripSecondsFromDate(timestampStr) {
+            if (!timestampStr || timestampStr === '-') return '-';
+            const parts = timestampStr.split(':');
+            return parts.length >= 2 ? parts.slice(0, 2).join(':') : timestampStr;
+        }
 
-            Object.keys(entriesByTime).sort().forEach(timeStr => {
-                const fleetInputs = entriesByTime[timeStr]; 
-                const tParts = timeStr.split(':');
-                const targetMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
-                let durationMins = 60; 
-                if (intervalType === '15min') durationMins = 15;
-                if (intervalType === 'daily') durationMins = 1440; 
+        function parseCustomDateToJS(dateStr) {
+            if (!dateStr || dateStr === '-') return null;
+            const parts = dateStr.split(' ');
+            if (parts.length < 2) return null;
+            const [dd, mm, yy] = parts[0].split('/');
+            const [hh, min, ss] = parts[1].split(':');
+            if (!dd || !mm || !yy || !hh || !min) return null;
+            const year = yy.length === 2 ? 2000 + parseInt(yy, 10) : parseInt(yy, 10);
+            return new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10), parseInt(hh, 10), parseInt(min, 10), parseInt(ss || 0, 10));
+        }
 
-                const matchedBags = currentFilteredBags.filter(b => {
-                    if (!b.timestamp) return false;
-                    const d = new Date(b.timestamp);
-                    const bMins = d.getHours() * 60 + d.getMinutes();
-                    return bMins >= targetMins && bMins < (targetMins + durationMins);
-                });
+        function formatExcelDate(val) {
+            if (val === undefined || val === null || val === '' || val === '-') return '-';
+            const valStr = String(val).trim().replace(/[\s\u00a0]+/g, ' ');
+            if (valStr === '' || valStr === '-') return '-';
 
-                const buckets = { MTB: [], SAT: [] };
-                matchedBags.forEach(b => {
-                    const cArea = (b.chute || '').toUpperCase();
-                    if(cArea.startsWith('MC')) buckets.SAT.push(b);
-                    else buckets.MTB.push(b);
-                });
+            if (/^\d+(\.\d+)?$/.test(valStr)) {
+                const serial = parseFloat(valStr);
+                if (serial > 0) {
+                    const utc_days = Math.floor(serial - 25569);
+                    const fractional = serial - Math.floor(serial);
+                    let total_seconds = Math.round(fractional * 86400);
+                    let extraDays = 0;
+                    if (total_seconds >= 86400) { total_seconds -= 86400; extraDays = 1; }
+                    const dateObj = new Date((utc_days + extraDays) * 86400 * 1000);
+                    const sec = total_seconds % 60;
+                    const total_mins = Math.floor(total_seconds / 60);
+                    const min = total_mins % 60;
+                    const hr = Math.floor(total_mins / 60);
+                    
+                    return `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${String(dateObj.getUTCFullYear()).slice(-2)} ${hr}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+                }
+            }
 
-                let mtbBagsCount = buckets.MTB.length;
-                let satBagsCount = buckets.SAT.length;
+            const match = valStr.match(/^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?$/i);
+            if (match) {
+                let [_, p1, p2, p3, hrStr, minStr, secStr, ampm] = match;
+                let dd, mm, yyyy;
+                if (p1.length === 4) { yyyy = parseInt(p1, 10); mm = parseInt(p2, 10); dd = parseInt(p3, 10); } 
+                else { dd = parseInt(p1, 10); mm = parseInt(p2, 10); yyyy = parseInt(p3, 10); if (yyyy < 100) yyyy += 2000; }
 
-                fleetInputs.forEach(v => {
-                    v.allowedDests = []; v.bags = []; v.totalTrips = 0; v.mins = 0; v.wave1Bags = 0;
-                });
+                let hr = hrStr !== undefined ? parseInt(hrStr, 10) : 0;
+                let min = minStr !== undefined ? parseInt(minStr, 10) : 0;
+                let sec = secStr !== undefined ? parseInt(secStr, 10) : 0;
 
-                if (fleetInputs.length === 1) {
-                    fleetInputs[0].allowedDests = ['MTB', 'SAT'];
-                } else {
-                    fleetInputs.forEach(v => {
-                        if (mtbBagsCount >= satBagsCount && mtbBagsCount > 0) {
-                            v.allowedDests.push('MTB'); mtbBagsCount -= v.cap;
-                        } else if (satBagsCount > 0) {
-                            v.allowedDests.push('SAT'); satBagsCount -= v.cap;
-                        } else {
-                            if (fleetInputs.filter(f=>f.allowedDests.includes('MTB')).length <= fleetInputs.filter(f=>f.allowedDests.includes('SAT')).length) {
-                                v.allowedDests.push('MTB');
-                            } else {
-                                v.allowedDests.push('SAT');
-                            }
-                        }
-                    });
+                if (ampm) {
+                    const upperAmPm = ampm.toUpperCase();
+                    if (upperAmPm === 'PM' && hr < 12) hr += 12;
+                    if (upperAmPm === 'AM' && hr === 12) hr = 0;
                 }
 
-                function groupBags(bagList) {
-                    const map = new Map();
-                    bagList.forEach(b => {
-                        const key = b.flight + '::' + b.chute;
-                        if(!map.has(key)) map.set(key, []);
-                        map.get(key).push(b);
-                    });
-                    return Array.from(map.values()).sort((a,b) => b.length - a.length);
-                }
+                return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy).slice(-2)} ${hr}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+            }
+            return valStr;
+        }
 
-                let mtbGroups = groupBags(buckets.MTB);
-                let satGroups = groupBags(buckets.SAT);
-
-                function getNextChunk(groups, space) {
-                    for (let i = 0; i < groups.length; i++) {
-                        if (groups[i].length > 0) {
-                            let chunk = groups[i].slice(0, space);
-                            groups[i] = groups[i].slice(space);
-                            return chunk;
-                        }
-                    }
-                    return [];
-                }
-
-                let tripNum = 1, anyBagMoved = true;
-                while (anyBagMoved) {
-                    anyBagMoved = false;
-                    fleetInputs.forEach(v => {
-                        let spaceLeft = v.cap, tripBags = [];
-                        v.allowedDests.forEach(dest => {
-                            let groups = dest === 'MTB' ? mtbGroups : satGroups;
-                            while (spaceLeft > 0) {
-                                let chunk = getNextChunk(groups, spaceLeft);
-                                if (chunk.length === 0) break;
-                                tripBags.push(...chunk);
-                                spaceLeft -= chunk.length;
-                                anyBagMoved = true;
-                            }
-                        });
-                        
-                        if (tripBags.length > 0) {
-                            v.totalTrips = tripNum;
-                            v.bags.push(...tripBags);
-                            if (tripNum === 1) v.wave1Bags += tripBags.length;
-                            
-                            let hasMTB_orig = false, hasSAT_orig = false, hasMTB_dest = false, hasSAT_dest = false;
-                            tripBags.forEach(b => {
-                                const oArea = b.rummageArea.toUpperCase(), cArea = (b.chute || '').toUpperCase();
-                                if (oArea.includes('SAT')) hasSAT_orig = true; else hasMTB_orig = true;
-                                if (cArea.startsWith('MC')) hasSAT_dest = true; else hasMTB_dest = true;
-                            });
-                            
-                            let tTrans = valMS; 
-                            if (hasMTB_orig && !hasSAT_orig && hasMTB_dest && !hasSAT_dest) tTrans = valMM;
-                            if (hasSAT_orig && !hasMTB_orig && hasSAT_dest && !hasSAT_dest) tTrans = valSS;
-                            
-                            const tLoad = (tripBags.length * valLoad) / 60, tUnload = (tripBags.length * valUnload) / 60;
-                            v.mins += (tLoad + tTrans + tUnload) / (valEff / 100);
-                        }
-                    });
-                    if (anyBagMoved) tripNum++;
-                }
-                fleetInputs.forEach(v => generatedTrips.push(v));
-            });
+        function extractISODate(formattedDisplayDate) {
+            if (!formattedDisplayDate || formattedDisplayDate === '-') return '';
+            const parts = formattedDisplayDate.split(' ')[0].split('/');
+            if (parts.length === 3) {
+                const yy = parts[2].length === 2 ? `20${parts[2]}` : parts[2];
+                return `${yy}-${parts[1]}-${parts[0]}`;
+            }
+            return '';
         }
 
         // --- NEW ALGORITHMIC OPTIMIZATIONS (Replaced getRawValue with Fast Map) ---
