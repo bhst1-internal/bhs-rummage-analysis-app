@@ -3246,7 +3246,7 @@
                 console.log(`[DEBUG] Attempting to fetch: ${url}`);
                 let response = await fetch(url);
                 
-                // If the primary fetch fails, try an alternative extension
+                // Fallback toggle between extensions
                 if (!response.ok) {
                     const fallbackUrl = url.endsWith('.xlsx') ? url.replace('.xlsx', '.xlsb') : url.replace('.xlsb', '.xlsx');
                     console.log(`[DEBUG] ${url} not found. Trying fallback: ${fallbackUrl}`);
@@ -3262,8 +3262,19 @@
                 const arrayBuffer = await response.arrayBuffer();
                 console.log(`[DEBUG] Downloaded ${url} - Size: ${arrayBuffer.byteLength} bytes`);
 
-                // Read the binary data
-                const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
+                // MAXIMUM MEMORY OPTIMIZATION FLAGS
+                const workbook = XLSX.read(arrayBuffer, { 
+                    type: 'array', 
+                    cellDates: false, 
+                    cellNF: false, 
+                    cellText: false,
+                    cellStyles: false,  // Discards formatting to save RAM
+                    cellFormula: false, // Discards formulas to save RAM
+                    sheetStubs: false,  // Drops empty cells
+                    dense: true,        // CRITICAL: Uses dense arrays instead of sparse objects (cuts RAM usage in half)
+                    raw: true 
+                });
+                
                 console.log(`[DEBUG] Sheets found in ${url}:`, workbook.SheetNames);
                 
                 let bestData = [];
@@ -3274,27 +3285,26 @@
                     const sheetName = workbook.SheetNames[i];
                     const worksheet = workbook.Sheets[sheetName];
                     
-                    // SAFETY CHECK: Skip if SheetJS completely failed to parse this sheet
+                    // Safety check if browser memory still crashed on this specific sheet
                     if (!worksheet) {
-                        console.warn(`[WARNING] Sheet "${sheetName}" could not be parsed. Skipping.`);
+                        console.warn(`[WARNING] Sheet "${sheetName}" is undefined. The uncompressed data exceeded browser memory limits.`);
                         continue;
                     }
                     
-                    // 1. Manually count actual cells in memory
-                    const cellKeys = Object.keys(worksheet).filter(k => k[0] !== '!');
-                    console.log(`[DEBUG] Sheet "${sheetName}" contains ${cellKeys.length} raw cells in memory.`);
+                    // 1. Count actual cells in memory (adapted for dense mode)
+                    let cellCount = 0;
+                    if (worksheet['!data']) {
+                        worksheet['!data'].forEach(row => { if (row) cellCount += row.length; });
+                    } else {
+                        cellCount = Object.keys(worksheet).filter(k => k[0] !== '!').length;
+                    }
+                    
+                    console.log(`[DEBUG] Sheet "${sheetName}" contains ${cellCount} raw cells in memory.`);
 
                     // 2. Fix broken internal dimensions
-                    if (cellKeys.length > 0 && (!worksheet['!ref'] || worksheet['!ref'] === 'A1')) {
+                    if (cellCount > 0 && (!worksheet['!ref'] || worksheet['!ref'] === 'A1')) {
                         console.warn(`[WARNING] Dimensions missing for "${sheetName}". Rebuilding manually...`);
-                        let maxRow = 1;
-                        cellKeys.forEach(key => {
-                            const match = key.match(/[0-9]+/);
-                            if (match) {
-                                const row = parseInt(match[0], 10);
-                                if (row > maxRow) maxRow = row;
-                            }
-                        });
+                        let maxRow = worksheet['!data'] ? worksheet['!data'].length : 1000000;
                         worksheet['!ref'] = `A1:ZZ${maxRow}`;
                     }
 
