@@ -2377,4 +2377,1150 @@
             let totalBagsInIntervals = 0;
 
             globalTimeMap.forEach((count, time) => {
-Please provide both the code you would like to integrate and your main code so I can help you combine them.
+                totalBagsInIntervals += count;
+                if (count > maxBagsInterval) {
+                    maxBagsInterval = count;
+                    maxBagsTime = time;
+                }
+            });
+
+            const intervalCount = globalTimeMap.size;
+            // Round the average to whole number
+            const avgBagsInterval = intervalCount > 0 ? Math.round(totalBagsInIntervals / intervalCount) : 0;
+            // ----------------------------------------------------
+
+            let avgHourStd = '-';
+            let maxHourStdRaw = '-';
+            let minHourStdRaw = '-';
+            
+            let maxColorClass = 'text-gray-500';
+            let minColorClass = 'text-gray-500';
+
+            let minBag = null;
+            let maxBagForMinMax = null;
+
+            let maxVal = -Infinity;
+            let minVal = Infinity;
+            let sum = 0;
+            let validCount = 0;
+
+            bags.forEach(b => {
+                if (b.hourBeforeStdNum !== null) {
+                    sum += b.hourBeforeStdNum;
+                    validCount++;
+                    if (b.hourBeforeStdNum > maxVal) { maxVal = b.hourBeforeStdNum; maxBagForMinMax = b; }
+                    if (b.hourBeforeStdNum < minVal) { minVal = b.hourBeforeStdNum; minBag = b; }
+                }
+            });
+
+            if (validCount > 0) {
+                let avgNum = sum / validCount;
+                avgHourStd = formatDecimalToHHmm(avgNum);
+                maxHourStdRaw = formatDecimalToHHmm(maxVal);
+                minHourStdRaw = formatDecimalToHHmm(minVal);
+                
+                maxColorClass = maxVal < 0 ? 'text-red-400' : (maxVal <= 1 ? 'text-yellow-400' : 'text-green-400');
+                minColorClass = minVal < 0 ? 'text-red-400' : (minVal <= 1 ? 'text-yellow-400' : 'text-green-400');
+            }
+
+            document.getElementById('kpi-bags').textContent = totalBags.toLocaleString();
+            document.getElementById('kpi-flights').textContent = totalFlights.toLocaleString();
+            
+            if(document.getElementById('tooltip-flights-mtb')) {
+                document.getElementById('tooltip-flights-mtb').innerHTML = `<span class="text-gray-400">MTB:</span> <span class="font-bold text-green-400 ml-1">${mtbFlightsCount}</span>`;
+            }
+            if(document.getElementById('tooltip-flights-sat')) {
+                document.getElementById('tooltip-flights-sat').innerHTML = `<span class="text-gray-400">SAT:</span> <span class="font-bold text-yellow-400 ml-1">${satFlightsCount}</span>`;
+            }
+
+            // Inject Interval KPI Data with dynamic title update
+            document.getElementById('kpi-avg-bags-label').textContent = `Total Bags (${intervalText})`;
+            document.getElementById('kpi-avg-bags').textContent = avgBagsInterval.toLocaleString();
+            document.getElementById('kpi-max-bags-interval').textContent = maxBagsInterval.toLocaleString();
+
+            const tooltipBoxInterval = document.getElementById('tooltip-max-bags-interval');
+            if (tooltipBoxInterval && maxBagsTime) {
+                const d = new Date(maxBagsTime);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yy = String(d.getFullYear()).slice(-2);
+                
+                // Only show time if not in daily view
+                const timeLabel = interval === 'daily' ? `${dd}/${mm}/${yy}` : `${dd}/${mm}/${yy} ${hh}:${min}`;
+                
+                tooltipBoxInterval.innerHTML = `
+                    <div class="font-bold text-gray-300 uppercase tracking-wide border-b border-gray-600 pb-1.5 mb-2">MAX BAGS RECORDED</div>
+                    <div class="mb-1"><span class="text-gray-400">Date & Time:</span> <span class="font-bold text-white ml-1">${timeLabel}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-blue-400 ml-1">${maxBagsInterval}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+            } else if (tooltipBoxInterval) {
+                tooltipBoxInterval.innerHTML = '';
+            }
+
+            document.getElementById('kpi-avg-time-std').textContent = avgHourStd;
+            
+            const kpiMaxEl = document.getElementById('kpi-max-time-std');
+            kpiMaxEl.textContent = maxHourStdRaw;
+            kpiMaxEl.className = `text-xl ${maxColorClass}`;
+            
+            const kpiMinEl = document.getElementById('kpi-min-time-std');
+            kpiMinEl.textContent = minHourStdRaw;
+            kpiMinEl.className = `text-xl ${minColorClass}`;
+            
+            const tooltipBox = document.getElementById('tooltip-maxmin-std');
+            if(tooltipBox && validCount > 0 && maxBagForMinMax && minBag) {
+                tooltipBox.innerHTML = `
+                    <div class="font-bold text-gray-300 uppercase tracking-wide border-b border-gray-600 pb-1 mb-2">DETAILS</div>
+                    <div class="mb-2">
+                        <div class="${maxColorClass} font-bold text-[0.65rem] uppercase mb-0.5">Max (${maxHourStdRaw})</div>
+                        <div class="text-gray-400 leading-tight">Flight: <span class="text-white">${maxBagForMinMax.flight}</span></div>
+                        <div class="text-gray-400 leading-tight">Dispatch: <span class="text-white">${maxBagForMinMax.eventTime}</span></div>
+                        <div class="text-gray-400 leading-tight">STD: <span class="text-white">${stripSecondsFromDate(maxBagForMinMax.std)}</span></div>
+                    </div>
+                    <div>
+                        <div class="${minColorClass} font-bold text-[0.65rem] uppercase mb-0.5">Min (${minHourStdRaw})</div>
+                        <div class="text-gray-400 leading-tight">Flight: <span class="text-white">${minBag.flight}</span></div>
+                        <div class="text-gray-400 leading-tight">Dispatch: <span class="text-white">${minBag.eventTime}</span></div>
+                        <div class="text-gray-400 leading-tight">STD: <span class="text-white">${stripSecondsFromDate(minBag.std)}</span></div>
+                    </div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+            } else if (tooltipBox) {
+                tooltipBox.innerHTML = ``;
+            }
+        }
+        
+        document.getElementById('btn-add-sim').addEventListener('click', () => {
+            const time = document.getElementById('sim-input-time').value;
+            const type = document.getElementById('sim-in-type').value;
+            const cap = parseInt(document.getElementById('sim-in-cap').value);
+            if (!time || !time.includes(':') || isNaN(cap) || cap < 1) return;
+
+            const newId = Date.now().toString() + Math.floor(Math.random()*1000);
+            const sameTypeInputs = simEntries.filter(e => e.time === time && e.type === type).length;
+            const name = `${type} ${sameTypeInputs + 1} (${cap})`;
+
+            simEntries.push({ id: newId, time, type, cap, name });
+            triggerSimulation();
+            setOptimizationState(false); 
+        });
+
+        window.removeTimeGroup = function(timeStr) {
+            simEntries = simEntries.filter(e => e.time !== timeStr);
+            triggerSimulation();
+            setOptimizationState(false); 
+        };
+
+        ['sim-f-load', 'sim-f-unload', 'sim-f-eff', 'sim-f-mm', 'sim-f-ss', 'sim-f-ms'].forEach(id => {
+            document.getElementById(id).addEventListener('input', triggerSimulation);
+        });
+
+        function triggerSimulation() {
+            generateTrips();
+            renderSimUI();
+        }
+
+        function generateTrips() {
+            generatedTrips = [];
+            if(simEntries.length === 0) return;
+
+            const valLoad = parseFloat(document.getElementById('sim-f-load').value) || 0;
+            const valUnload = parseFloat(document.getElementById('sim-f-unload').value) || 0;
+            const valEff = parseFloat(document.getElementById('sim-f-eff').value) || 100;
+            const valMM = parseFloat(document.getElementById('sim-f-mm').value) || 0;
+            const valSS = parseFloat(document.getElementById('sim-f-ss').value) || 0;
+            const valMS = parseFloat(document.getElementById('sim-f-ms').value) || 0;
+            
+            const intervalType = document.getElementById('slicer-interval').value;
+
+            const entriesByTime = {};
+            simEntries.forEach(e => {
+                if(!entriesByTime[e.time]) entriesByTime[e.time] = [];
+                entriesByTime[e.time].push(e);
+            });
+
+            Object.keys(entriesByTime).sort().forEach(timeStr => {
+                const fleetInputs = entriesByTime[timeStr]; 
+                
+                const tParts = timeStr.split(':');
+                const targetMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
+                let durationMins = 60; 
+                if (intervalType === '15min') durationMins = 15;
+                if (intervalType === 'daily') durationMins = 1440; 
+
+                const matchedBags = currentFilteredBags.filter(b => {
+                    if (!b.timestamp) return false;
+                    
+                    const d = new Date(b.timestamp);
+                    const bMins = d.getHours() * 60 + d.getMinutes();
+                    return bMins >= targetMins && bMins < (targetMins + durationMins);
+                });
+
+                const buckets = { MTB: [], SAT: [] };
+                matchedBags.forEach(b => {
+                    const cArea = (b.chute || '').toUpperCase();
+                    if(cArea.startsWith('MC')) buckets.SAT.push(b);
+                    else buckets.MTB.push(b);
+                });
+
+                let mtbBagsCount = buckets.MTB.length;
+                let satBagsCount = buckets.SAT.length;
+
+                fleetInputs.forEach(v => {
+                    v.allowedDests = [];
+                    v.bags = [];
+                    v.totalTrips = 0;
+                    v.mins = 0;
+                    v.wave1Bags = 0;
+                });
+
+                if (fleetInputs.length === 1) {
+                    fleetInputs[0].allowedDests = ['MTB', 'SAT'];
+                } else {
+                    fleetInputs.forEach(v => {
+                        if (mtbBagsCount >= satBagsCount && mtbBagsCount > 0) {
+                            v.allowedDests.push('MTB');
+                            mtbBagsCount -= v.cap;
+                        } else if (satBagsCount > 0) {
+                            v.allowedDests.push('SAT');
+                            satBagsCount -= v.cap;
+                        } else {
+                            if (fleetInputs.filter(f=>f.allowedDests.includes('MTB')).length <= fleetInputs.filter(f=>f.allowedDests.includes('SAT')).length) {
+                                v.allowedDests.push('MTB');
+                            } else {
+                                v.allowedDests.push('SAT');
+                            }
+                        }
+                    });
+                }
+
+                function groupBags(bagList) {
+                    const map = new Map();
+                    bagList.forEach(b => {
+                        const key = b.flight + '::' + b.chute;
+                        if(!map.has(key)) map.set(key, []);
+                        map.get(key).push(b);
+                    });
+                    return Array.from(map.values()).sort((a,b) => b.length - a.length);
+                }
+
+                let mtbGroups = groupBags(buckets.MTB);
+                let satGroups = groupBags(buckets.SAT);
+
+                function getNextChunk(groups, space) {
+                    for (let i = 0; i < groups.length; i++) {
+                        if (groups[i].length > 0) {
+                            let chunk = groups[i].slice(0, space);
+                            groups[i] = groups[i].slice(space);
+                            return chunk;
+                        }
+                    }
+                    return [];
+                }
+
+                let tripNum = 1;
+                let anyBagMoved = true;
+
+                while (anyBagMoved) {
+                    anyBagMoved = false;
+                    
+                    fleetInputs.forEach(v => {
+                        let spaceLeft = v.cap;
+                        let tripBags = [];
+                        
+                        v.allowedDests.forEach(dest => {
+                            let groups = dest === 'MTB' ? mtbGroups : satGroups;
+                            while (spaceLeft > 0) {
+                                let chunk = getNextChunk(groups, spaceLeft);
+                                if (chunk.length === 0) break;
+                                tripBags.push(...chunk);
+                                spaceLeft -= chunk.length;
+                                anyBagMoved = true;
+                            }
+                        });
+                        
+                        if (tripBags.length > 0) {
+                            v.totalTrips = tripNum;
+                            v.bags.push(...tripBags);
+                            
+                            if (tripNum === 1) v.wave1Bags += tripBags.length;
+                            
+                            let hasMTB_orig = false, hasSAT_orig = false;
+                            let hasMTB_dest = false, hasSAT_dest = false;
+                            tripBags.forEach(b => {
+                                const oArea = b.rummageArea.toUpperCase();
+                                const cArea = (b.chute || '').toUpperCase();
+                                if (oArea.includes('SAT')) hasSAT_orig = true; else hasMTB_orig = true;
+                                if (cArea.startsWith('MC')) hasSAT_dest = true; else hasMTB_dest = true;
+                            });
+                            
+                            let tTrans = valMS; 
+                            if (hasMTB_orig && !hasSAT_orig && hasMTB_dest && !hasSAT_dest) tTrans = valMM;
+                            if (hasSAT_orig && !hasMTB_orig && hasSAT_dest && !hasSAT_dest) tTrans = valSS;
+                            
+                            const tLoad = (tripBags.length * valLoad) / 60;
+                            const tUnload = (tripBags.length * valUnload) / 60;
+                            v.mins += (tLoad + tTrans + tUnload) / (valEff / 100);
+                        }
+                    });
+                    if (anyBagMoved) tripNum++;
+                }
+
+                fleetInputs.forEach(v => {
+                    generatedTrips.push(v);
+                });
+            });
+        }
+
+        function renderSimUI() {
+            const list = document.getElementById('sim-entries-list');
+            list.innerHTML = '';
+            let globalTotalBags = 0;
+            let globalTotalMins = 0;
+            let globalMaxWorkload = 0;
+            let maxWorkloadDetails = null;
+
+            let globalMaxTransports = 0;
+            let maxTransDetails = null;
+
+            const entriesByTime = {};
+            simEntries.forEach(e => {
+                if(!entriesByTime[e.time]) entriesByTime[e.time] = [];
+                entriesByTime[e.time].push(e);
+            });
+
+            const tripsByTime = {};
+            generatedTrips.forEach(t => {
+                if(!tripsByTime[t.time]) tripsByTime[t.time] = [];
+                tripsByTime[t.time].push(t);
+            });
+
+            Object.keys(entriesByTime).sort().forEach(timeStr => {
+                const fleet = tripsByTime[timeStr] || [];
+
+                const intervalType = document.getElementById('slicer-interval').value;
+                const tParts = timeStr.split(':');
+                const targetMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
+                let durationMins = 60; 
+                if (intervalType === '15min') durationMins = 15;
+                if (intervalType === 'daily') durationMins = 1440; 
+                
+                const matchedBags = currentFilteredBags.filter(b => {
+                    if (!b.timestamp) return false;
+                    
+                    const d = new Date(b.timestamp);
+                    const bMins = d.getHours() * 60 + d.getMinutes();
+                    return bMins >= targetMins && bMins < (targetMins + durationMins);
+                });
+                const blockTotalAvailableBags = matchedBags.length;
+
+                let loadedBagsWave1 = fleet.reduce((sum, v) => sum + (v.wave1Bags || 0), 0);
+                let balance = blockTotalAvailableBags - loadedBagsWave1;
+                if (balance < 0) balance = 0; 
+                
+                let totalTrans = fleet.length;
+                let maxTrips = fleet.length > 0 ? Math.max(...fleet.map(v => v.totalTrips || 0)) : 0;
+                let totalMinsSum = fleet.reduce((sum, v) => sum + (v.mins || 0), 0);
+                let avgWorkloadMins = totalTrans > 0 ? totalMinsSum / totalTrans : 0;
+
+                globalTotalBags += blockTotalAvailableBags; 
+                globalTotalMins += avgWorkloadMins;
+                
+                let blockBags = [];
+                fleet.forEach(t => { if(t.bags) blockBags.push(...t.bags); });
+                
+                let flights = new Set(blockBags.map(b => b.flight));
+                let dates = new Set(blockBags.map(b => b.dateOnlyISO).filter(d => d));
+                let dateDisplay = "Multiple";
+                let dateArr = Array.from(dates);
+                if (dateArr.length === 1 && dateArr[0]) {
+                    let parts = dateArr[0].split('-');
+                    if(parts.length === 3) dateDisplay = `${parts[2]}/${parts[1]}/${parts[0].slice(-2)}`;
+                    else dateDisplay = dateArr[0];
+                }
+                
+                let lorryCount = entriesByTime[timeStr].filter(e => e.type === 'Lorry').length;
+                let trolleyCount = entriesByTime[timeStr].filter(e => e.type === 'Trolley').length;
+
+                if (avgWorkloadMins >= globalMaxWorkload && fleet.length > 0) {
+                    globalMaxWorkload = avgWorkloadMins;
+                    maxWorkloadDetails = {
+                        date: dateDisplay, time: timeStr, totalFlight: flights.size,
+                        totalBags: blockTotalAvailableBags, totalTrans: totalTrans,
+                        lorryCount: lorryCount, trolleyCount: trolleyCount, totalTrip: maxTrips
+                    };
+                }
+
+                let currentTotalTrans = entriesByTime[timeStr].length;
+                if (currentTotalTrans >= globalMaxTransports && currentTotalTrans > 0) {
+                    globalMaxTransports = currentTotalTrans;
+                    maxTransDetails = {
+                        date: dateDisplay, time: timeStr,
+                        lorryCount: lorryCount, trolleyCount: trolleyCount
+                    };
+                }
+
+                let chipsHtml = fleet.map(t => {
+                    return `<button onclick="openTripModal('${t.id}')" class="bg-blue-100 text-blue-800 border border-blue-300 px-2 py-0.5 rounded text-[0.65rem] font-bold hover:bg-blue-200 transition shadow-sm truncate cursor-pointer" title="Click to view assigned bags">${t.name}</button>`;
+                }).join('');
+
+                const div = document.createElement('div');
+                div.className = "bg-white border border-gray-200 rounded p-1.5 shadow-sm relative transition-all flex flex-col gap-1.5";
+                div.innerHTML = `
+                    <div class="flex items-center justify-between text-xs px-0.5 pt-0.5">
+                        <span class="font-bold text-gray-800 whitespace-nowrap">Time: <span class="text-blue-600">${timeStr}</span></span>
+                        <div class="flex items-center justify-end gap-1.5 flex-1 mx-3 min-w-0">
+                            ${chipsHtml}
+                        </div>
+                        <button onclick="removeTimeGroup('${timeStr}')" class="text-red-400 hover:text-red-700 font-bold transition text-lg leading-none" title="Remove all inputs for ${timeStr}">&times;</button>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1 text-gray-600 bg-gray-50 p-1 rounded border border-gray-100">
+                        <div class="flex flex-col min-w-0 text-center">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Loaded Bags">Loaded Bags</span>
+                            <b class="text-blue-600 text-xs truncate">${loadedBagsWave1}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Balance">Balance</span>
+                            <b class="text-red-500 text-xs truncate">${balance}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Total Trans.">Total Trans.</span>
+                            <b class="text-gray-800 text-xs truncate">${totalTrans}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Total Trips">Total Trips</span>
+                            <b class="text-gray-800 text-xs truncate">${maxTrips}</b>
+                        </div>
+                        <div class="flex flex-col min-w-0 text-center border-l border-gray-200">
+                            <span class="text-[0.5rem] uppercase font-bold text-gray-400 leading-tight mb-0.5 truncate" title="Workload (Avg)">Workload</span>
+                            <b class="text-gray-800 text-xs truncate">${Math.round(avgWorkloadMins)}m</b>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+            
+            document.getElementById('sim-out-bags').textContent = globalTotalBags.toLocaleString();
+            
+            let displayTime = Math.round(globalTotalMins) + 'm';
+            if (globalTotalMins > 60) {
+                const h = Math.floor(globalTotalMins / 60);
+                const m = Math.round(globalTotalMins % 60);
+                displayTime = `${h}h ${m}m`;
+            }
+            document.getElementById('sim-out-duration').textContent = displayTime;
+            
+            const maxWlEl = document.getElementById('out-max-workload');
+            const maxWlDateTimeEl = document.getElementById('out-max-workload-datetime');
+            const maxWlTooltip = document.getElementById('out-max-workload-tooltip');
+
+            if (simEntries.length > 0 && maxWorkloadDetails) {
+                maxWlEl.innerHTML = `${Math.round(globalMaxWorkload)} <span class="text-sm font-semibold text-teal-500 ml-0.5">minutes</span>`;
+                maxWlDateTimeEl.textContent = `${maxWorkloadDetails.date} ${maxWorkloadDetails.time}`;
+                
+                maxWlTooltip.innerHTML = `
+                    <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">WORKLOAD DETAILS</div>
+                    <div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.date}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Time:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.time}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Flight:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalFlight}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalBags}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Total Transport:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalTrans} <span class="text-gray-400 font-normal opacity-90">(Lorry: ${maxWorkloadDetails.lorryCount} | Trolley: ${maxWorkloadDetails.trolleyCount})</span></span></div>
+                    <div><span class="text-gray-400">Total Trip:</span> <span class="font-bold text-white ml-1">${maxWorkloadDetails.totalTrip}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+                maxWlTooltip.classList.remove('hidden');
+            } else {
+                maxWlEl.textContent = '-';
+                maxWlDateTimeEl.textContent = '-';
+                maxWlTooltip.innerHTML = '';
+                maxWlTooltip.classList.add('hidden');
+            }
+
+            const maxTransEl = document.getElementById('out-max-transports');
+            const maxTransDateTimeEl = document.getElementById('out-max-transports-datetime');
+            const maxTransTooltip = document.getElementById('out-max-transports-tooltip');
+
+            if (simEntries.length > 0 && maxTransDetails && globalMaxTransports > 0) {
+                maxTransEl.textContent = globalMaxTransports;
+                maxTransDateTimeEl.textContent = `${maxTransDetails.date} ${maxTransDetails.time}`;
+                
+                maxTransTooltip.innerHTML = `
+                    <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">FLEET DETAILS</div>
+                    <div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1">${maxTransDetails.date}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Time:</span> <span class="font-bold text-white ml-1">${maxTransDetails.time}</span></div>
+                    <div class="mb-1"><span class="text-gray-400">Lorry Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.lorryCount}</span></div>
+                    <div><span class="text-gray-400">Trolley Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.trolleyCount}</span></div>
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
+                `;
+                maxTransTooltip.classList.remove('hidden');
+            } else {
+                maxTransEl.textContent = '-';
+                maxTransDateTimeEl.textContent = '-';
+                maxTransTooltip.innerHTML = '';
+                maxTransTooltip.classList.add('hidden');
+            }
+        }
+
+        function generateCustomTicks(minTime, maxTime, interval) {
+            const tickvals = [];
+            const ticktext = [];
+            
+            const diff = maxTime - minTime;
+            let tickStepMs;
+            
+            let isThirteenDaysOrMore = diff >= 86400000 * 12.5;
+            let isEightDaysOrMore = diff >= 86400000 * 7.5;
+            
+            if (interval === 'daily') {
+                tickStepMs = 86400000; 
+            } else {
+                if (isThirteenDaysOrMore) tickStepMs = 86400000; 
+                else if (isEightDaysOrMore) tickStepMs = 43200000; 
+                else if (diff >= 86400000 * 2.5) tickStepMs = 43200000; 
+                else tickStepMs = 10800000; 
+            }
+
+            let currentDt = new Date(minTime);
+            if (tickStepMs >= 86400000) {
+                currentDt.setHours(0,0,0,0);
+            } else if (tickStepMs === 43200000) {
+                const h = currentDt.getHours();
+                currentDt.setHours(h - (h % 12), 0, 0, 0);
+            } else {
+                const h = currentDt.getHours();
+                currentDt.setHours(h - (h % 3), 0, 0, 0);
+            }
+            
+            let current = currentDt.getTime();
+            const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+            let safety = 0;
+            while (current <= maxTime + tickStepMs && safety < 1000) {
+                tickvals.push(current);
+                const d = new Date(current);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mm = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mmm = monthNames[d.getMonth()];
+                const yy = String(d.getFullYear()).slice(-2);
+                
+                let baseDateStr = (isEightDaysOrMore && interval !== 'daily') ? `${dd}-${mmm}` : `${dd} ${mmm} ${yy}`;
+                
+                let finalDateStr;
+                if (isThirteenDaysOrMore && interval !== 'daily') {
+                    finalDateStr = baseDateStr; 
+                } else {
+                    finalDateStr = `<span style="font-weight: 900;"><b>${baseDateStr}</b></span>`;
+                }
+
+                if (tickStepMs >= 86400000) {
+                    ticktext.push(finalDateStr);
+                } else {
+                    if (hh === '00' && mm === '00') {
+                        ticktext.push(`00:00<br>${finalDateStr}`);
+                    } else {
+                        ticktext.push(`${hh}:${mm}`);
+                    }
+                }
+                current += tickStepMs;
+                safety++;
+            }
+            return { tickvals, ticktext };
+        }
+
+        function renderTimeline(bags) {
+            const chartDiv = document.getElementById('chart-timeline');
+            const countEl = document.getElementById('out-overlap-count');
+            const modalBody = document.getElementById('overlap-modal-body');
+            const modalTotal = document.getElementById('overlap-modal-total');
+
+            if (bags.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                document.getElementById('out-max-bags').textContent = "0";
+                document.getElementById('out-max-time').textContent = "-";
+                countEl.textContent = "0";
+                modalBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-gray-400 italic">No flight data available.</td></tr>';
+                modalTotal.textContent = 'Total Bags: 0';
+                return;
+            }
+
+            const interval = document.getElementById('slicer-interval').value;
+            const tracesMap = new Map(); 
+            const globalTimeMap = new Map(); 
+            const globalFlightBagMap = new Map(); 
+
+            let stepMs = 1000; 
+            if (interval === 'daily') stepMs = 86400000;
+            else if (interval === 'hourly') stepMs = 3600000;
+            else if (interval === '15min') stepMs = 900000;
+
+            bags.forEach(bag => {
+                if (!bag.timestamp) return;
+
+                let binnedTime;
+                if (interval === 'daily') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+                } else if (interval === 'hourly') {
+                    const dt = new Date(bag.timestamp);
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), 0, 0).getTime();
+                } else if (interval === '15min') {
+                    const dt = new Date(bag.timestamp);
+                    const min = dt.getMinutes();
+                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), min - (min % 15), 0).getTime();
+                } else {
+                    binnedTime = bag.timestamp;
+                }
+
+                globalTimeMap.set(binnedTime, (globalTimeMap.get(binnedTime) || 0) + 1);
+
+                if (!globalFlightBagMap.has(binnedTime)) {
+                    globalFlightBagMap.set(binnedTime, new Map());
+                }
+                if (bag.flight && bag.flight !== '-') {
+                    const fbMap = globalFlightBagMap.get(binnedTime);
+                    fbMap.set(bag.flight, (fbMap.get(bag.flight) || 0) + 1);
+                }
+
+                const traceKey = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
+
+                if (!tracesMap.has(traceKey)) tracesMap.set(traceKey, new Map());
+                
+                const timeMap = tracesMap.get(traceKey);
+                timeMap.set(binnedTime, (timeMap.get(binnedTime) || 0) + 1);
+            });
+
+            let maxBags = 0;
+            let peakTime = null;
+            globalTimeMap.forEach((count, time) => {
+                if (count > maxBags) {
+                    maxBags = count;
+                    peakTime = time;
+                }
+            });
+
+            document.getElementById('out-max-bags').textContent = maxBags.toLocaleString();
+            if (peakTime) {
+                const d = new Date(peakTime);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yy = String(d.getFullYear()).slice(-2);
+                document.getElementById('out-max-time').textContent = `${dd}/${mm}/${yy} ${hh}:${min}`;
+            } else {
+                document.getElementById('out-max-bags').textContent = "0";
+                document.getElementById('out-max-time').textContent = "-";
+            }
+
+            if (peakTime && globalFlightBagMap.has(peakTime)) {
+                const fbMap = globalFlightBagMap.get(peakTime);
+                countEl.textContent = fbMap.size.toLocaleString();
+                
+                let tbodyHtml = '';
+                let modalTotalBags = 0;
+                
+                const sortedFlights = Array.from(fbMap.entries()).sort((a, b) => {
+                    if (b[1] !== a[1]) return b[1] - a[1];
+                    return a[0].localeCompare(b[0]);
+                });
+
+                sortedFlights.forEach(([fl, qty]) => {
+                    tbodyHtml += `<tr class="border-b border-gray-100 hover:bg-gray-50"><td class="py-2 text-sm font-bold text-gray-800">${fl}</td><td class="py-2 text-sm text-right font-mono">${qty}</td></tr>`;
+                    modalTotalBags += qty;
+                });
+                
+                modalBody.innerHTML = tbodyHtml;
+                modalTotal.textContent = `Total Bags: ${modalTotalBags}`;
+            } else {
+                countEl.textContent = "0";
+                modalBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-gray-400 italic">No flight data available.</td></tr>';
+                modalTotal.textContent = 'Total Bags: 0';
+            }
+
+            let minTime = Infinity;
+            let maxTime = -Infinity;
+
+            tracesMap.forEach(timeMap => {
+                const times = Array.from(timeMap.keys());
+                if(times.length > 0) {
+                    const traceMin = Math.min(...times);
+                    const traceMax = Math.max(...times);
+                    if (!timeMap.has(traceMin - stepMs)) timeMap.set(traceMin - stepMs, 0);
+                    if (!timeMap.has(traceMax + stepMs)) timeMap.set(traceMax + stepMs, 0);
+                    
+                    minTime = Math.min(minTime, traceMin - stepMs);
+                    maxTime = Math.max(maxTime, traceMax + stepMs);
+                }
+            });
+
+            let customTicks = { tickvals: [], ticktext: [] };
+            if (minTime !== Infinity && maxTime !== -Infinity) {
+                customTicks = generateCustomTicks(minTime, maxTime, interval);
+            }
+
+            const plotlyData = [];
+
+            const definedOrder = ['MA', 'MB', 'MC1', 'MC2', 'MS1', 'MS2'];
+            const traceKeys = Array.from(tracesMap.keys()).sort((a, b) => {
+                let idxA = definedOrder.indexOf(a);
+                let idxB = definedOrder.indexOf(b);
+                if (idxA === -1) idxA = 999;
+                if (idxB === -1) idxB = 999;
+                if (idxA !== idxB) return idxA - idxB;
+                return a.localeCompare(b);
+            });
+
+            traceKeys.forEach(traceKey => {
+                const timeMap = tracesMap.get(traceKey);
+                const xVals = [];
+                const yVals = [];
+                
+                const sortedTimes = Array.from(timeMap.keys()).sort((a, b) => a - b);
+                sortedTimes.forEach(t => {
+                    xVals.push(new Date(t));
+                    yVals.push(timeMap.get(t));
+                });
+                
+                const traceColor = areaColorMap.get(traceKey) || '#94a3b8';
+
+                plotlyData.push({
+                    x: xVals,
+                    y: yVals,
+                    name: traceKey,
+                    type: 'scatter',
+                    mode: 'lines',
+                    fill: 'tozeroy', 
+                    opacity: 0.5,    
+                    line: { shape: 'spline', smoothing: 0.4, color: traceColor },
+                    hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                });
+            });
+
+            const layout = {
+                margin: { t: 40, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                xaxis: { 
+                    type: 'date',
+                    tickvals: customTicks.tickvals,
+                    ticktext: customTicks.ticktext,
+                    tickmode: 'array',
+                    range: [minTime, maxTime], 
+                    hoverformat: '%d/%m/%y %H:%M' 
+                },
+                yaxis: { 
+                    title: { text: 'Bags Count', standoff: 30 }
+                },
+                showlegend: true,
+                hovermode: 'x unified', 
+                hoverlabel: {
+                    bgcolor: '#1f2937',     
+                    bordercolor: '#374151', 
+                    namelength: -1,         
+                    align: 'left',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                },
+                legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 }
+            };
+
+            Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
+        }
+
+        function renderRummageLoad(bags) {
+            const chartDiv = document.getElementById('chart-bar');
+            if (bags.length === 0) {
+                try { Plotly.purge(chartDiv); } catch(e) {}
+                return;
+            }
+
+            const areaCounts = new Map();
+            bags.forEach(bag => {
+                const area = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
+                areaCounts.set(area, (areaCounts.get(area) || 0) + 1);
+            });
+
+            let sortedAreas = Array.from(areaCounts.keys());
+            const sortMethod = document.getElementById('rummage-sort').value;
+
+            sortedAreas.sort((a, b) => {
+                if (sortMethod === 'bags-desc') return areaCounts.get(b) - areaCounts.get(a);
+                if (sortMethod === 'bags-asc') return areaCounts.get(a) - areaCounts.get(b);
+                if (sortMethod === 'alpha') return a.localeCompare(b);
+                if (sortMethod === 'area') {
+                    const aIsMTB = a.toUpperCase().includes('MTB') ? 0 : 1;
+                    const bIsMTB = b.toUpperCase().includes('MTB') ? 0 : 1;
+                    if (aIsMTB !== bIsMTB) return aIsMTB - bIsMTB;
+                    return a.localeCompare(b);
+                }
+                return 0;
+            });
+
+            const xVals = sortedAreas;
+            const yVals = sortedAreas.map(a => areaCounts.get(a));
+            const colors = sortedAreas.map(a => areaColorMap.get(a) || '#94a3b8');
+
+            const plotlyData = [{
+                x: xVals,
+                y: yVals,
+                type: 'bar',
+                marker: { color: colors, opacity: 0.5 },
+                text: yVals,
+                textposition: 'outside',
+                textfont: { color: '#4b5563', weight: 'bold' },
+                cliponaxis: false,
+                hovertemplate: `<span style="color: #d1d5db;">%{x}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+            }];
+
+            const layout = {
+                margin: { t: 30, l: 60, r: 20, b: 40 }, 
+                paper_bgcolor: '#ffffff',
+                plot_bgcolor: '#ffffff',
+                xaxis: { title: '', tickangle: 0 },
+                yaxis: { title: { text: 'Total Bags', standoff: 30 } },
+                showlegend: false,
+                hoverlabel: {
+                    bgcolor: '#1f2937', bordercolor: '#374151',
+                    font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' }
+                }
+            };
+
+            Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
+        }
+
+        function renderTable(bags) {
+            const tbody = document.getElementById('reclaim-tbody');
+            tbody.innerHTML = '';
+
+            if (bags.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="py-8 text-gray-400 italic text-center">No matching bag records found.</td></tr>`;
+                return;
+            }
+
+            // MODIFIED: Sort table globally by timestamp (EVENT TIME) ascending
+            const sortedBags = [...bags].sort((a, b) => a.timestamp - b.timestamp);
+
+            const displayBags = sortedBags.slice(0, currentTableLimit);
+            const fragment = document.createDocumentFragment();
+
+            displayBags.forEach(bag => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition-colors";
+                
+                const hourValue = bag.hourBeforeStdNum;
+                let hourTextColor = 'text-gray-800 font-bold';
+                
+                if (hourValue !== null) {
+                    if (hourValue < 0) {
+                        hourTextColor = 'text-red-600 font-bold';
+                    } else if (hourValue <= 1) {
+                        hourTextColor = 'text-yellow-600 font-bold';
+                    } else {
+                        hourTextColor = 'text-green-600 font-bold';
+                    }
+                }
+                
+                const formattedStd = stripSecondsFromDate(bag.std);
+                const formattedHourBeforeStd = formatDecimalToHHmm(bag.hourBeforeStdNum);
+
+                tr.innerHTML = `
+                    <td class="font-mono font-semibold text-center" title="${bag.eventTime}">${bag.eventTime}</td>
+                    <td class="font-bold w-24 flight-cell cursor-pointer text-blue-600 hover:text-blue-800 text-center" 
+                        data-flight="${bag.flight}" 
+                        data-std="${bag.std}" 
+                        data-dispatch="${bag.eventTime}" 
+                        data-chute="${bag.chute}" 
+                        data-gh="${bag.groundHandler}">
+                        ${bag.flight}
+                    </td>
+                    <td class="font-mono text-center" title="${formattedStd}">${formattedStd}</td>
+                    <td class="font-mono font-bold text-gray-900 text-center" title="${bag.bagTagId}">${bag.bagTagId}</td>
+                    <td class="text-center" title="${bag.rummage}">${bag.rummage}</td>
+                    <td class="font-semibold text-blue-600 text-center" title="${bag.rummageArea}">${bag.rummageArea}</td>
+                    <td class="text-center" title="${bag.reason}">${bag.reason}</td>
+                    <td class="text-center" title="${bag.chute}">${bag.chute}</td>
+                    <td class="text-center" title="${bag.groundHandler}">${bag.groundHandler}</td>
+                    <td class="font-mono ${hourTextColor} text-center" title="${bag.hourBeforeStd}">${formattedHourBeforeStd}</td>
+                `;
+                fragment.appendChild(tr);
+            });
+            
+            if (sortedBags.length > currentTableLimit) {
+                 const tr = document.createElement('tr');
+                 tr.innerHTML = `
+                 <td colspan="10" class="py-4 text-center bg-gray-50">
+                     <button id="btn-load-more-rows" class="px-4 py-2 bg-blue-50 text-blue-600 border border-blue-200 font-bold rounded hover:bg-blue-100 transition text-xs shadow-sm focus:outline-none">
+                         Load Next 500 Rows (Showing ${currentTableLimit} of ${sortedBags.length})
+                     </button>
+                 </td>`;
+                 fragment.appendChild(tr);
+            }
+
+            tbody.appendChild(fragment);
+
+            const loadMoreBtn = document.getElementById('btn-load-more-rows');
+            if (loadMoreBtn) {
+                loadMoreBtn.addEventListener('click', () => {
+                    currentTableLimit += 500;
+                    renderTable(currentFilteredBags);
+                });
+            }
+        }
+
+        function resetFilters() {
+            setDefaultDateFilters();
+            
+            flightSearchInput.value = '';
+            document.querySelectorAll('.flight-item').forEach(item => item.style.display = 'block');
+
+            filterState = { flight: ['ALL'], reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
+            updateFlightUI();
+
+            document.getElementById('text-reason').textContent = 'All Reasons';
+            document.getElementById('text-handler').textContent = 'All GH';
+            document.getElementById('text-reclaim').textContent = 'All Areas';
+            populateFilterDropdowns(); 
+
+            document.getElementById('slicer-search-bag').value = '';
+            document.getElementById('slicer-interval').value = 'hourly';
+            
+            triggerFilters();
+        }
+
+// -------------------------------------------------------------
+        // NEW MULTI-DATASET MERGING LOGIC (data.xlsx & chute.xlsx)
+        // -------------------------------------------------------------
+
+        // Helper: Fetch Excel file as ArrayBuffer and parse via SheetJS
+        async function parseXLSB(url) {
+            try {
+                console.log(`[DEBUG] Attempting to fetch: ${url}`);
+                let response = await fetch(url);
+                
+                // Fallback toggle between extensions
+                if (!response.ok) {
+                    const fallbackUrl = url.endsWith('.xlsx') ? url.replace('.xlsx', '.xlsb') : url.replace('.xlsb', '.xlsx');
+                    console.log(`[DEBUG] ${url} not found. Trying fallback: ${fallbackUrl}`);
+                    response = await fetch(fallbackUrl);
+                    url = fallbackUrl;
+                }
+
+                console.log(`[DEBUG] HTTP Status for ${url}: ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const arrayBuffer = await response.arrayBuffer();
+                console.log(`[DEBUG] Downloaded ${url} - Size: ${arrayBuffer.byteLength} bytes`);
+
+                // MAXIMUM MEMORY OPTIMIZATION FLAGS
+                const workbook = XLSX.read(arrayBuffer, { 
+                    type: 'array', 
+                    cellDates: false, 
+                    cellNF: false, 
+                    cellText: false,
+                    cellStyles: false,  // Discards formatting to save RAM
+                    cellFormula: false, // Discards formulas to save RAM
+                    sheetStubs: false,  // Drops empty cells
+                    dense: true,        // CRITICAL: Uses dense arrays instead of sparse objects (cuts RAM usage in half)
+                    raw: true 
+                });
+                
+                console.log(`[DEBUG] Sheets found in ${url}:`, workbook.SheetNames);
+                
+                let bestData = [];
+                let bestSheetName = "";
+
+                // Loop through all sheets to find the actual data
+                for (let i = 0; i < workbook.SheetNames.length; i++) {
+                    const sheetName = workbook.SheetNames[i];
+                    const worksheet = workbook.Sheets[sheetName];
+                    
+                    // Safety check if browser memory still crashed on this specific sheet
+                    if (!worksheet) {
+                        console.warn(`[WARNING] Sheet "${sheetName}" is undefined. The uncompressed data exceeded browser memory limits.`);
+                        continue;
+                    }
+                    
+                    // 1. Count actual cells in memory (adapted for dense mode)
+                    let cellCount = 0;
+                    if (worksheet['!data']) {
+                        worksheet['!data'].forEach(row => { if (row) cellCount += row.length; });
+                    } else {
+                        cellCount = Object.keys(worksheet).filter(k => k[0] !== '!').length;
+                    }
+                    
+                    console.log(`[DEBUG] Sheet "${sheetName}" contains ${cellCount} raw cells in memory.`);
+
+                    // 2. Fix broken internal dimensions
+                    if (cellCount > 0 && (!worksheet['!ref'] || worksheet['!ref'] === 'A1')) {
+                        console.warn(`[WARNING] Dimensions missing for "${sheetName}". Rebuilding manually...`);
+                        let maxRow = worksheet['!data'] ? worksheet['!data'].length : 1000000;
+                        worksheet['!ref'] = `A1:ZZ${maxRow}`;
+                    }
+
+                    const data = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
+                    console.log(`[DEBUG] Checked sheet "${sheetName}": successfully extracted ${data.length} rows.`);
+                    
+                    if (data.length > bestData.length) {
+                        bestData = data;
+                        bestSheetName = sheetName;
+                    }
+                }
+                
+                console.log(`[DEBUG] Selected sheet "${bestSheetName}" for ${url} with ${bestData.length} rows.`);
+                return bestData;
+                
+            } catch (err) {
+                console.error(`[ERROR] Failed to process ${url}:`, err);
+                return []; 
+            }
+        }
+
+        // Helper: Isolate date combining logic to use for both datasets
+        function getCombinedEventTime(row) {
+            let rawDate = getRawValue(row, ['DATE', 'EVENT DATE']);
+            let rawTime = getRawValue(row, ['TIME']);
+            let rawEventTime = getRawValue(row, ['EVENTTIME', 'EVENT TIME', 'EVENT_TIME']);
+
+            if (rawEventTime !== '-') {
+                return formatExcelDate(rawEventTime);
+            } else if (rawDate !== '-') && (rawTime !== '-') {
+                if (/^\d+(\.\d+)?$/.test(String(rawDate).trim()) && /^\d+(\.\d+)?$/.test(String(rawTime).trim())) {
+                    return formatExcelDate(parseFloat(rawDate) + parseFloat(rawTime));
+                } else {
+                    return formatExcelDate(`${rawDate} ${rawTime}`);
+                }
+            } else if (rawDate !== '-') {
+                return formatExcelDate(rawDate);
+            }
+            return '-';
+        }
+
+        // 1. Build a lookup map holding 'TRA' and 'DIS' events per BAGTAGID and specific Date
+        function buildChuteLookup(chuteData) {
+            const lookup = new Map();
+            
+            chuteData.forEach(row => {
+                const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
+                if (bagTag === '-' || !bagTag) return;
+
+                const status = String(getRawValue(row, ['STATUS'])).trim().toUpperCase();
+                const chute = getRawValue(row, ['CHUTE', 'CHUTE ID', 'CHUTE_ID']);
+                const combinedTime = getCombinedEventTime(row);
+                const dateOnlyISO = extractISODate(combinedTime); // Extract specific date for cross-referencing
+
+                if (chute === '-' || !dateOnlyISO) return;
+
+                // Create a unique composite key combining BAGTAGID and specific date
+                const key = `${bagTag}_${dateOnlyISO}`;
+
+                if (!lookup.has(key)) {
+                    lookup.set(key, { TRA: null, DIS: null });
+                }
+                
+                // Store Planned (TRA) and Actual/Final (DIS) destinations
+                if (status === 'TRA') {
+                    lookup.get(key).TRA = chute;
+                } else if (status === 'DIS') {
+                    lookup.get(key).DIS = chute;
+                }
+            });
+
+            return lookup;
+        }
+
+        // 2. Merge the specific "TRA" Assigned Chute into the Main Data for "OPEN" bags
+        function mergeChuteData(mainData, chuteLookup) {
+            return mainData.map(row => {
+                const bagTag = getRawValue(row, ['BAGTAGID', 'BAG TAG', 'BAG_TAG_ID', 'BAGTAG', 'LICENSE_PLATE']);
+                const reason = String(getRawValue(row, ['REASON', 'RUMMAGE REASON'])).trim().toUpperCase();
+                
+                const combinedTime = getCombinedEventTime(row);
+                const dateOnlyISO = extractISODate(combinedTime);
+
+                // Condition: Only apply mapping to OPEN reasons based on matching BAGTAGID and Date
+                if (reason === 'OPEN' && dateOnlyISO) {
+                    const key = `${bagTag}_${dateOnlyISO}`;
+                    
+                    if (chuteLookup.has(key)) {
+                        const chuteInfo = chuteLookup.get(key);
+                        
+                        // Overwrite the specific CHUTE column with the planned TRA Assigned Chute
+                        if (chuteInfo.TRA && chuteInfo.TRA !== '-') {
+                            let keyFound = false;
+                            for (let k of Object.keys(row)) {
+                                const upperK = k.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                                if (upperK === 'CHUTE' || upperK === 'CHUTEID' || upperK === 'ASSIGNEDCHUTE') {
+                                    row[k] = chuteInfo.TRA;
+                                    keyFound = true;
+                                    break;
+                                }
+                            }
+                            if (!keyFound) {
+                                row['CHUTE'] = chuteInfo.TRA; // Fallback injection
+                            }
+                        }
+                    }
+                }
+                return row;
+            });
+        }
+
+        // Main Execution Pipeline
+        async function loadDataFiles() {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.classList.remove('hidden');
+
+            try {
+                // Fetch both XLSX datasets concurrently using relative paths
+                const [mainData, chuteData] = await Promise.all([
+                    parseXLSB("./data.xlsx"),
+                    parseXLSB("./chute.xlsx")
+                ]);
+
+                if (mainData.length === 0) {
+                    alert("Could not load data.xlsx. Please ensure it is uploaded to your repository without Git LFS and is named correctly.");
+                    overlay.classList.add('hidden');
+                    return;
+                }
+
+                // Apply Logic Step 1: Create specific date mapping from Chute File
+                const chuteLookup = buildChuteLookup(chuteData);
+
+                // Apply Logic Step 2: Merge the earliest chute back into main dataset
+                const mergedData = mergeChuteData(mainData, chuteLookup);
+
+                // Pass merged data to your existing render pipeline
+                processBagEntities(mergedData);
+                setDefaultDateFilters();
+                populateFilterDropdowns();
+                
+                document.getElementById('btn-save-as').classList.remove('hidden');
+                document.getElementById('kpi-section').classList.remove('hidden');
+                document.getElementById('charts-section').classList.remove('hidden');
+                
+                applyFiltersAndRender();
+                
+            } catch (err) {
+                console.error("Data Processing Error:", err);
+                alert("An error occurred while merging the data files.");
+            } finally {
+                overlay.classList.add('hidden');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadDataFiles);
+    </script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js');
+    });
+  }
+</script>
+</body>
+</html>
