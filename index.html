@@ -3254,22 +3254,33 @@
                 const arrayBuffer = await response.arrayBuffer();
                 console.log(`[DEBUG] Downloaded ${url} - Size: ${arrayBuffer.byteLength} bytes`);
                 
-                // Check if it's a Git LFS pointer (usually around 130 bytes)
                 if (arrayBuffer.byteLength < 500) {
-                    console.warn(`[WARNING] ${url} is suspiciously small (${arrayBuffer.byteLength} bytes). This is almost certainly a Git LFS text pointer, NOT your actual Excel file.`);
+                    console.warn(`[WARNING] ${url} is suspiciously small. Might be a Git LFS text pointer.`);
                 }
 
                 // Read the binary data
                 const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
+                console.log(`[DEBUG] Sheets found in ${url}:`, workbook.SheetNames);
                 
-                // Extract the first sheet
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
+                let bestData = [];
+                let bestSheetName = "";
+
+                // Loop through all sheets to find the one with the most rows of data
+                for (let i = 0; i < workbook.SheetNames.length; i++) {
+                    const sheetName = workbook.SheetNames[i];
+                    const worksheet = workbook.Sheets[sheetName];
+                    const data = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
+                    
+                    console.log(`[DEBUG] Checked sheet "${sheetName}": found ${data.length} rows.`);
+                    
+                    if (data.length > bestData.length) {
+                        bestData = data;
+                        bestSheetName = sheetName;
+                    }
+                }
                 
-                // Convert to array of objects
-                const data = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: true, rawNumbers: true });
-                console.log(`[DEBUG] Successfully parsed ${data.length} rows from ${url}`);
-                return data;
+                console.log(`[DEBUG] Selected sheet "${bestSheetName}" for ${url} with ${bestData.length} rows.`);
+                return bestData;
                 
             } catch (err) {
                 console.error(`[ERROR] Failed to process ${url}:`, err);
