@@ -1597,12 +1597,21 @@
             return isNaN(num) ? null : num;
         }
 
+        // --- NEW AM/PM STRIP SECONDS LOGIC ---
         function stripSecondsFromDate(timestampStr) {
             if (!timestampStr || timestampStr === '-') return '-';
-            const parts = timestampStr.split(':');
-            return parts.length >= 2 ? parts.slice(0, 2).join(':') : timestampStr;
+            const parts = timestampStr.split(' '); 
+            if (parts.length >= 2) {
+                const timeParts = parts[1].split(':');
+                if (timeParts.length >= 2) {
+                    parts[1] = `${timeParts[0]}:${timeParts[1]}`;
+                }
+                return parts.join(' ');
+            }
+            return timestampStr;
         }
 
+        // --- NEW AM/PM PARSER LOGIC ---
         function parseCustomDateToJS(dateStr) {
             if (!dateStr || dateStr === '-') return null;
             const parts = dateStr.split(' ');
@@ -1611,11 +1620,19 @@
             const [hh, min, ss] = parts[1].split(':');
             if (!dd || !mm || !yy || !hh || !min) return null;
             const year = yy.length === 2 ? 2000 + parseInt(yy, 10) : parseInt(yy, 10);
-            return new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10), parseInt(hh, 10), parseInt(min, 10), parseInt(ss || 0, 10));
+            
+            let hour = parseInt(hh, 10);
+            if (parts[2]) {
+                const ampm = parts[2].toUpperCase();
+                if (ampm === 'PM' && hour < 12) hour += 12;
+                if (ampm === 'AM' && hour === 12) hour = 0;
+            }
+            return new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10), hour, parseInt(min, 10), parseInt(ss || 0, 10));
         }
 
         const excelDateRegex = /^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?$/i;
 
+        // --- NEW AM/PM FORMATTER LOGIC ---
         function formatExcelDate(val) {
             if (val === undefined || val === null || val === '' || val === '-') return '-';
             const valStr = String(val).trim().replace(/[\s\u00a0]+/g, ' ');
@@ -1633,8 +1650,13 @@
                     const sec = total_seconds % 60;
                     const total_mins = Math.floor(total_seconds / 60);
                     const min = total_mins % 60;
-                    const hr = Math.floor(total_mins / 24);
-                    return `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${String(dateObj.getUTCFullYear()).slice(-2)} ${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+                    const hr24 = Math.floor(total_mins / 60) % 24;
+                    
+                    let ampm = hr24 >= 12 ? 'PM' : 'AM';
+                    let hr12 = hr24 % 12;
+                    hr12 = hr12 ? hr12 : 12;
+
+                    return `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${String(dateObj.getUTCFullYear()).slice(-2)} ${hr12}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')} ${ampm}`;
                 }
             }
 
@@ -1647,12 +1669,18 @@
                 let hr = hrStr !== undefined ? parseInt(hrStr, 10) : 0;
                 let min = minStr !== undefined ? parseInt(minStr, 10) : 0;
                 let sec = secStr !== undefined ? parseInt(secStr, 10) : 0;
+                
                 if (ampm) {
                     const upperAmPm = ampm.toUpperCase();
                     if (upperAmPm === 'PM' && hr < 12) hr += 12;
                     if (upperAmPm === 'AM' && hr === 12) hr = 0;
                 }
-                return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy).slice(-2)} ${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+
+                let outAmPm = hr >= 12 ? 'PM' : 'AM';
+                let outHr = hr % 12;
+                outHr = outHr ? outHr : 12;
+
+                return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy).slice(-2)} ${outHr}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')} ${outAmPm}`;
             }
             return valStr;
         }
@@ -2512,22 +2540,17 @@
                 
                 if (bagTag === '-' || !bagTag) return;
                 
-                // Rule 1 & 2: Identify the journey based on Status. Extract TRA (Planned Destination) for the Assigned Chute.
                 const status = String(getRawValue(row, ['STATUS'])).trim().toUpperCase();
                 if (status !== 'TRA') return;
 
-                // Extract specific date to ensure we match the exact day's operation
                 const combinedTime = getCombinedEventTime(row);
-                const dateISO = extractISODate(combinedTime);
+                const dateISO = extractISODate(combinedTime); // Format: YYYY-MM-DD
                 if (!dateISO) return;
 
                 const chute = getRawValue(row, ['CHUTE', 'CHUTEID']);
                 if (chute === '-') return;
 
-                // Rule 3: Create unique identifier combining BAGTAGID + Date
                 const uniqueKey = `${bagTag}_${dateISO}`;
-                
-                // Store the planned TRA chute
                 lookup.set(uniqueKey, chute);
             });
             
@@ -2540,19 +2563,32 @@
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'LICENSEPLATE']);
                 const reason = String(getRawValue(row, ['REASON', 'RUMMAGEREASON'])).trim().toUpperCase();
 
-                // Rule 1: Target specifically OPEN reason bags
                 if (reason === 'OPEN') {
-                    // Reconstruct the exact same BAGTAGID + Date key to cross-reference
                     const combinedTime = getCombinedEventTime(row);
-                    const dateISO = extractISODate(combinedTime);
-                    const uniqueKey = `${bagTag}_${dateISO}`;
-
-                    // If a planned TRA chute exists for this bag on this specific date in chute.xlsx
-                    if (chuteLookup.has(uniqueKey)) {
-                        const assignedChute = chuteLookup.get(uniqueKey);
+                    const dateISO = extractISODate(combinedTime); 
+                    
+                    if (dateISO) {
+                        const uniqueKeyToday = `${bagTag}_${dateISO}`;
                         
+                        // Calculate the previous date ISO format (for bags bridging midnight)
+                        const [yy, mm, dd] = dateISO.split('-');
+                        const dt = new Date(parseInt(yy, 10), parseInt(mm, 10) - 1, parseInt(dd, 10));
+                        dt.setDate(dt.getDate() - 1);
+                        const prevYY = dt.getFullYear();
+                        const prevMM = String(dt.getMonth() + 1).padStart(2, '0');
+                        const prevDD = String(dt.getDate()).padStart(2, '0');
+                        const prevDateISO = `${prevYY}-${prevMM}-${prevDD}`;
+                        const uniqueKeyPrev = `${bagTag}_${prevDateISO}`;
+
+                        // Check Same Date first, then Previous Date
+                        let assignedChute = null;
+                        if (chuteLookup.has(uniqueKeyToday)) {
+                            assignedChute = chuteLookup.get(uniqueKeyToday);
+                        } else if (chuteLookup.has(uniqueKeyPrev)) {
+                            assignedChute = chuteLookup.get(uniqueKeyPrev);
+                        }
+
                         if (assignedChute && assignedChute !== '-') {
-                            // Modify original raw row to display the TRA value in Assigned Chute
                             let keyFound = false;
                             for (let k of Object.keys(rawRow)) {
                                 const upperK = k.replace(/[^A-Z0-9]/gi, '').toUpperCase();
@@ -2562,7 +2598,7 @@
                                     break;
                                 }
                             }
-                            if (!keyFound) rawRow['CHUTE'] = assignedChute; // Fallback if column is missing
+                            if (!keyFound) rawRow['CHUTE'] = assignedChute; 
                         }
                     }
                 }
