@@ -80,10 +80,11 @@
         <div class="bg-white p-6 rounded-lg shadow flex flex-col md:flex-row justify-between items-center border-t-4 border-blue-600">
             <div>
                 <h1 class="text-2xl font-bold text-gray-800">BHS Operation Dashboard - Rummage</h1>
-                <p class="text-sm text-gray-500">Upload your Rummage operations data to generate insights</p>
+                <p class="text-sm text-gray-500">Highlight and upload BOTH data.xlsx & chute.xlsx together.</p>
             </div>
             <div class="mt-4 md:mt-0 flex items-center gap-2 w-full md:w-auto">
-				<input type="file" id="upload" accept=".xlsx, .xls, .xlsb" class="hidden w-full md:w-auto text-sm text-gray-500
+                <!-- Added "multiple" attribute here to allow uploading two files at once -->
+				<input type="file" id="upload" accept=".xlsx, .xls, .xlsb" multiple class="w-full md:w-auto text-sm text-gray-500
 					file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold
 					file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
 					
@@ -930,312 +931,27 @@
                     e.preventDefault();
                     const x = e.pageX - scrollArea.offsetLeft;
                     const walk = (x - startX) * 2; // adjust scroll speed
-                    scrollArea.scrollLeft = scrollLeft - walk;
-                });
-            }
-        });
-        // ---------------------------------------------
+                    scrollA blank dashboard that loads instantly without a loading indicator usually points to a disconnect between your state management and your data fetching logic. 
 
-        function renderTimelineTable(bags) {
-            const thead = document.getElementById('timelineThead');
-            const tbody = document.getElementById('timelineTbody');
+**1. Check Your Initial Loading State**
+Your loading variable (e.g., `isLoading`) likely defaults to `false` when the component mounts.
+*   Set the initial state to `true` so the loader renders immediately upon mount.
+*   Alternatively, ensure your loading state is toggled to `true` on the very first line of your data-fetching function before the API call is made.
 
-            if (bags.length === 0) {
-                thead.innerHTML = '';
-                tbody.innerHTML = `<tr><td colspan="100%" class="py-8 text-gray-400 italic text-center">No timeline data available.</td></tr>`;
-                return;
-            }
+**2. Inspect for Silent API Failures**
+The request might be failing instantly (e.g., CORS error, 401 Unauthorized, or a malformed endpoint), and your `catch` block is turning off the loading state without rendering an error message.
+*   Open your browser's **Network tab** to verify if the API call is actually firing and what HTTP status it returns.
+*   Check the **Console** for unhandled promise rejections.
+*   Ensure your error handling updates an `errorMessage` state and displays it on the UI if the fetch fails.
 
-            const interval = document.getElementById('slicer-interval').value;
-            const tracesMap = new Map();
-            const globalTimeMap = new Map();
-            const uniqueDates = new Set(); 
+**3. Verify Empty Data Responses**
+The API might be returning a successful `200 OK` response instantly, but the payload itself is empty (e.g., `[]` or `null`).
+*   If your dashboard simply maps over an array to render charts or tables, an empty array will render nothing.
+*   Implement an explicit "Empty State" UI (e.g., "No data available") that triggers if `data.length === 0` and `isLoading` is `false`.
 
-            bags.forEach(bag => {
-                if (!bag.timestamp) return;
+**4. Confirm Data Binding and State Updates**
+The data might be fetched successfully but never properly assigned to the variable the dashboard actually uses to render.
+*   Log the data right after the fetch call resolves: `console.log('Fetched data:', response)`.
+*   Ensure the state update function is targeting the correct nested object. Sometimes the actual data array is hidden one level deep inside the response object (e.g., `setData(response.data.results)` instead of `setData(response.data)`).
 
-                let binnedTime;
-                const dt = new Date(bag.timestamp);
-                
-                if (interval === 'daily') {
-                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
-                } else if (interval === 'hourly') {
-                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), 0, 0).getTime();
-                } else if (interval === '15min') {
-                    const min = dt.getMinutes();
-                    binnedTime = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), min - (min % 15), 0).getTime();
-                } else {
-                    binnedTime = bag.timestamp;
-                }
-
-                globalTimeMap.set(binnedTime, (globalTimeMap.get(binnedTime) || 0) + 1);
-                uniqueDates.add(`${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`);
-
-                const traceKey = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
-                if (!tracesMap.has(traceKey)) tracesMap.set(traceKey, new Map());
-                
-                const timeMap = tracesMap.get(traceKey);
-                timeMap.set(binnedTime, (timeMap.get(binnedTime) || 0) + 1);
-            });
-
-            const isSingleDate = uniqueDates.size <= 1;
-
-            const definedOrder = ['MA', 'MB', 'MC1', 'MC2', 'MS1', 'MS2'];
-            const sortedAreas = Array.from(tracesMap.keys()).sort((a, b) => {
-                let idxA = definedOrder.indexOf(a);
-                let idxB = definedOrder.indexOf(b);
-                if (idxA === -1) idxA = 999;
-                if (idxB === -1) idxB = 999;
-                if (idxA !== idxB) return idxA - idxB;
-                return a.localeCompare(b);
-            });
-            
-            const sortedTimes = Array.from(globalTimeMap.keys()).sort((a, b) => a - b);
-
-            // 1. Build Transposed Table Header
-            let theadHTML = '<tr>';
-            theadHTML += '<th class="sticky left-0 top-0 z-30 bg-gray-50 text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider px-4 py-3 border-b border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] text-left whitespace-nowrap min-w-[110px] w-[110px]">Rummage Area</th>';
-            
-            sortedTimes.forEach(t => {
-                const dt = new Date(t);
-                let timeStr = '';
-                
-                if (interval === 'daily') {
-                    timeStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
-                } else {
-                    const timeOnly = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
-                    if (isSingleDate) {
-                        timeStr = timeOnly;
-                    } else {
-                        timeStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')} <br> ${timeOnly}`;
-                    }
-                }
-                
-                theadHTML += `<th class="sticky top-0 z-20 bg-gray-50 text-[0.65rem] font-bold text-gray-500 uppercase tracking-wider px-2 py-3 border-b border-gray-200 shadow-sm text-center whitespace-nowrap min-w-[60px] w-[60px]">${timeStr}</th>`;
-            });
-            
-            theadHTML += '<th class="sticky right-0 top-0 z-30 bg-blue-50 text-[0.65rem] font-extrabold text-blue-700 uppercase tracking-wider px-3 py-3 border-b border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] text-center min-w-[70px] w-[70px]">Total</th>';
-            theadHTML += '</tr>';
-            thead.innerHTML = theadHTML;
-
-            // 2. Build Transposed Table Body
-            let tbodyHTML = '';
-            
-            sortedAreas.forEach(area => {
-                tbodyHTML += `<tr class="hover:bg-gray-50 transition-colors">`;
-                
-                // First sticky column (Area)
-                tbodyHTML += `<td class="sticky left-0 z-10 bg-white py-2 px-4 text-[0.7rem] font-bold text-gray-700 text-left border-b border-r border-gray-100 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[110px] w-[110px]">${area}</td>`;
-                
-                let rowTotal = 0;
-                sortedTimes.forEach(t => {
-                    const count = tracesMap.get(area).get(t) || 0;
-                    rowTotal += count;
-                    tbodyHTML += `<td class="py-2 px-2 text-[0.7rem] font-semibold text-gray-600 text-center border-b border-gray-100 min-w-[60px] w-[60px]">${count > 0 ? count : '-'}</td>`;
-                });
-                
-                // Last sticky column (Row Total)
-                tbodyHTML += `<td class="sticky right-0 z-10 bg-blue-50/50 py-2 px-3 text-[0.75rem] font-extrabold text-blue-600 text-center border-b border-l border-gray-100 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[70px] w-[70px]">${rowTotal}</td>`;
-                tbodyHTML += `</tr>`;
-            });
-            
-            // 3. Final Total Row
-            tbodyHTML += `<tr class="bg-gray-50">`;
-            tbodyHTML += `<td class="sticky left-0 z-10 bg-gray-100 py-3 px-4 text-[0.7rem] font-extrabold text-gray-800 text-left border-t border-r border-gray-200 whitespace-nowrap shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[110px] w-[110px]">TOTAL BAGS</td>`;
-            
-            let grandTotal = 0;
-            sortedTimes.forEach(t => {
-                const count = globalTimeMap.get(t) || 0;
-                grandTotal += count;
-                tbodyHTML += `<td class="py-3 px-2 text-[0.75rem] font-extrabold text-gray-800 text-center border-t border-gray-200 bg-gray-50 min-w-[60px] w-[60px]">${count > 0 ? count : '-'}</td>`;
-            });
-            
-            tbodyHTML += `<td class="sticky right-0 z-10 bg-blue-100/50 py-3 px-3 text-[0.8rem] font-black text-blue-700 text-center border-t border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[70px] w-[70px]">${grandTotal}</td>`;
-            tbodyHTML += `</tr>`;
-
-            tbody.innerHTML = tbodyHTML;
-        }
-        // -------------------------------------------------------------
-
-        function formatDecimalToHHmm(decimalHours) {
-            if (decimalHours === null || decimalHours === undefined || isNaN(decimalHours)) return '-';
-            const isNegative = decimalHours < 0;
-            const absHours = Math.abs(decimalHours);
-            let h = Math.floor(absHours);
-            let m = Math.round((absHours - h) * 60);
-            if (m === 60) {
-                h += 1;
-                m = 0;
-            }
-            const sign = isNegative ? '-' : '';
-            return `${sign}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        }
-
-        function setupDropdownToggle(btnId, menuId) {
-            const btn = document.getElementById(btnId);
-            const menu = document.getElementById(menuId);
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                document.querySelectorAll('.multi-select-menu').forEach(m => {
-                    if (m.id !== menuId) m.classList.add('hidden');
-                });
-                document.getElementById('custom-flight-menu').classList.add('hidden');
-                menu.classList.toggle('hidden');
-            });
-            document.addEventListener('click', (e) => {
-                if (!menu.contains(e.target) && !btn.contains(e.target)) {
-                    menu.classList.add('hidden');
-                }
-            });
-        }
-
-        document.getElementById('btn-save-as').addEventListener('click', saveDashboardAsHTML);
-
-        function saveDashboardAsHTML() {
-            if (bagDataset.size === 0) {
-                alert("No dataset loaded to save.");
-                return;
-            }
-            
-            // Force collapse if expanded so DOM exports correctly natively
-            if (isTimelineTableExpanded) {
-                toggleDataTable(); 
-            }
-
-            const dataArray = Array.from(bagDataset.values());
-            const safeJson = JSON.stringify(dataArray).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
-
-            const clone = document.documentElement.cloneNode(true);
-
-            ['chart-timeline', 'chart-bar', 'chart-histogram', 'sim-summary-chart'].forEach(id => {
-                const el = clone.querySelector('#' + id);
-                if (el) el.innerHTML = '';
-            });
-
-            ['flight-options-list', 'menu-reason', 'menu-handler', 'menu-reclaim'].forEach(id => {
-                const el = clone.querySelector('#' + id);
-                if (el) el.innerHTML = '';
-            });
-
-            const tbody = clone.querySelector('#reclaim-tbody');
-            if (tbody) {
-                tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-gray-400 italic">Upload an Excel file to display unique bag details.</td></tr>';
-            }
-
-            ['loading-overlay', 'overlap-modal', 'trip-modal', 'opt-deploy-modal', 'reset-confirm-modal', 'sim-summary-modal', 'custom-flight-menu', 'timeline-expanded-modal'].forEach(id => {
-                const el = clone.querySelector('#' + id);
-                if (el) el.classList.add('hidden');
-            });
-
-            const tooltipContent = clone.querySelector('#table-tooltip-content');
-            if (tooltipContent) tooltipContent.innerHTML = '';
-
-            const scriptBlock = `<script id="embedded-data-store">window.PRELOADED_BHS_DATA = ${safeJson};<\/script>`;
-
-            const existingStore = clone.querySelector('#embedded-data-store');
-            if (existingStore) existingStore.remove();
-
-            const head = clone.querySelector('head');
-            if (head) {
-                head.insertAdjacentHTML('beforeend', scriptBlock);
-            }
-
-            const docHtml = "<!DOCTYPE html>\n" + clone.outerHTML;
-
-            const todayStr = new Date().toISOString().slice(0,10);
-            const blob = new Blob([docHtml], { type: 'text/html;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `BHS_Rummage_Dashboard_${todayStr}.html`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
-
-        function loadEmbeddedData(dataArray) {
-            bagDataset.clear();
-            dataArray.forEach(bag => {
-                bagDataset.set(bag.bagTagId, bag);
-            });
-
-            setDefaultDateFilters();
-            populateFilterDropdowns();
-
-            document.getElementById('btn-save-as').classList.remove('hidden');
-            document.getElementById('kpi-section').classList.remove('hidden');
-            document.getElementById('charts-section').classList.remove('hidden');
-
-            applyFiltersAndRender();
-        }
-
-        function setOptimizationState(state) {
-            isOptimized = state;
-            const btnOptToggle = document.getElementById('btn-optimize-toggle');
-            const btnResetSim = document.getElementById('btn-reset-sim');
-
-            if (state) {
-                if (btnOptToggle) {
-                    btnOptToggle.innerHTML = `OPTIMIZED`; 
-                    btnOptToggle.className = "px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white text-[0.65rem] font-bold rounded shadow-md flex items-center gap-1 transition-all border border-green-700 focus:outline-none";
-                }
-                if (btnResetSim) {
-                    btnResetSim.classList.remove('hidden');
-                }
-            } else {
-                if (btnOptToggle) {
-                    btnOptToggle.innerHTML = `Optimization !`; 
-                    btnOptToggle.className = "px-2.5 py-1 bg-yellow-500 hover:bg-yellow-600 text-white text-[0.65rem] font-bold rounded shadow-md flex items-center gap-1 transition-all border border-yellow-600 focus:outline-none";
-                }
-                if (btnResetSim) {
-                    btnResetSim.classList.add('hidden');
-                }
-            }
-        }
-
-        document.addEventListener('click', (e) => {
-            const btnOpt = e.target.closest('#btn-optimize-toggle');
-            if (btnOpt && !isOptimized) {
-                document.getElementById('opt-deploy-modal').classList.remove('hidden');
-            }
-
-            const btnReset = e.target.closest('#btn-reset-sim');
-            if (btnReset) {
-                document.getElementById('reset-confirm-modal').classList.remove('hidden');
-            }
-        });
-
-        document.getElementById('btn-cancel-reset').addEventListener('click', () => {
-            document.getElementById('reset-confirm-modal').classList.add('hidden');
-        });
-
-        document.getElementById('btn-confirm-reset').addEventListener('click', () => {
-            simEntries = []; 
-            triggerSimulation();
-            setOptimizationState(false); 
-            To update this logic and map the journey of the OPEN bag accurately, we need to link the planned `TRA` event with the subsequent `DIS` event for each `BAGTAGID`. 
-
-Because I do not have your current script or query, **could you please share the code (SQL, Python/Pandas, or otherwise) you are currently working with?** 
-
-In the meantime, here is the conceptual logic for how we will pair those two rows to extract the new **Assigned Chute** column:
-
-1. **Match the Events:** We will isolate the row where the Status is `TRA` (which holds the planned destination) and the row where the Status is `DIS` (which represents the bag being dispatched at the Rummage chute).
-2. **Link by Bag:** We will join or group these two rows using the `BAGTAGID`, adding a time condition to ensure the `TRA` event occurred *before* or on the same date as the `DIS` event.
-3. **Rename the Output:** We will pull the chute value specifically from the `TRA` row and output it under the new column header `Assigned Chute` for your "Rummage Details" table. 
-
-For example, in SQL, the structural change will look something like this:
-
-```sql
-SELECT 
-    Actual.BAGTAGID,
-    Planned.Chute AS [Assigned Chute], -- Pulled from the TRA row
-    Actual.Chute AS [Dispatch Location], -- Dispatched at Rummage
-    Planned.EventTime AS [TRA Event Time],
-    Actual.EventTime AS [DIS Event Time]
-FROM BaggageEvents Actual
-JOIN BaggageEvents Planned 
-    ON Actual.BAGTAGID = Planned.BAGTAGID 
-    AND Planned.Status = 'TRA' 
-    AND Actual.Status = 'DIS'
-    AND Planned.EventTime <= Actual.EventTime
+Are you building this in a specific framework like React or Vue? If so, I can provide a code snippet to lock down the correct mounting and loading pattern.
