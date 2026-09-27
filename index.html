@@ -1564,13 +1564,12 @@
             }, 50);
         }
 
-        // OPTIMIZATION: Normalize keys once instead of Regexing them N*M times inside getRawValue
         function normalizeRowKeys(row) {
             const norm = {};
             for (let key in row) {
                 norm[key.replace(/[^A-Z0-9]/gi, '').toUpperCase()] = row[key];
             }
-            norm._original = row; // Keep original for mutation later if needed
+            norm._original = row; 
             return norm;
         }
 
@@ -1615,7 +1614,6 @@
             return new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10), parseInt(hh, 10), parseInt(min, 10), parseInt(ss || 0, 10));
         }
 
-        // OPTIMIZATION: Hoisted Regex outside of tight loop
         const excelDateRegex = /^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?$/i;
 
         function formatExcelDate(val) {
@@ -1674,7 +1672,7 @@
             rows.forEach((rawRow, index) => {
                 const row = normalizeRowKeys(rawRow);
                 
-                const rawBagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'BAGTAGID', 'LICENSEPLATE']);
+                const rawBagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'LICENSEPLATE']);
                 const bagTagId = (rawBagTag !== '-' && rawBagTag !== '') ? String(rawBagTag).trim() : `UNKNOWN_${index + 1}`;
 
                 const rawDate = getRawValue(row, ['DATE', 'EVENTDATE']);
@@ -2511,20 +2509,28 @@
             chuteData.forEach(rawRow => {
                 const row = normalizeRowKeys(rawRow);
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'LICENSEPLATE']);
+                
                 if (bagTag === '-' || !bagTag) return;
+                
+                // Rule 1 & 2: Identify the journey based on Status. Extract TRA (Planned Destination) for the Assigned Chute.
                 const status = String(getRawValue(row, ['STATUS'])).trim().toUpperCase();
                 if (status !== 'TRA') return;
 
+                // Extract specific date to ensure we match the exact day's operation
                 const combinedTime = getCombinedEventTime(row);
-                const parsedDt = parseCustomDateToJS(combinedTime);
-                const ts = parsedDt ? parsedDt.getTime() : 0;
-                const chute = getRawValue(row, ['CHUTE', 'CHUTEID']);
+                const dateISO = extractISODate(combinedTime);
+                if (!dateISO) return;
 
-                if (chute === '-' || ts === 0) return;
-                if (!lookup.has(bagTag)) lookup.set(bagTag, []);
-                lookup.get(bagTag).push({ timestamp: ts, chute: chute });
+                const chute = getRawValue(row, ['CHUTE', 'CHUTEID']);
+                if (chute === '-') return;
+
+                // Rule 3: Create unique identifier combining BAGTAGID + Date
+                const uniqueKey = `${bagTag}_${dateISO}`;
+                
+                // Store the planned TRA chute
+                lookup.set(uniqueKey, chute);
             });
-            lookup.forEach((events, bagTag) => events.sort((a, b) => b.timestamp - a.timestamp));
+            
             return lookup;
         }
 
@@ -2533,37 +2539,34 @@
                 const row = normalizeRowKeys(rawRow);
                 const bagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'LICENSEPLATE']);
                 const reason = String(getRawValue(row, ['REASON', 'RUMMAGEREASON'])).trim().toUpperCase();
-                const status = String(getRawValue(row, ['STATUS'])).trim().toUpperCase();
-                const isDisEvent = status === 'DIS' || status === '-'; 
 
-                if (reason === 'OPEN' && isDisEvent && chuteLookup.has(bagTag)) {
+                // Rule 1: Target specifically OPEN reason bags
+                if (reason === 'OPEN') {
+                    // Reconstruct the exact same BAGTAGID + Date key to cross-reference
                     const combinedTime = getCombinedEventTime(row);
-                    const parsedDt = parseCustomDateToJS(combinedTime);
-                    const disTs = parsedDt ? parsedDt.getTime() : 0;
-                    
-                    const traEvents = chuteLookup.get(bagTag);
-                    let assignedChute = null;
+                    const dateISO = extractISODate(combinedTime);
+                    const uniqueKey = `${bagTag}_${dateISO}`;
 
-                    if (disTs > 0) {
-                        const maxTimeDiffMs = 48 * 60 * 60 * 1000; 
-                        for (let tra of traEvents) {
-                            if (tra.timestamp <= disTs && (disTs - tra.timestamp) <= maxTimeDiffMs) { assignedChute = tra.chute; break; }
-                        }
-                    }
-                    if (!assignedChute && traEvents.length > 0 && disTs === 0) assignedChute = traEvents[0].chute;
-                    
-                    if (assignedChute && assignedChute !== '-') {
-                        // Modify original row
-                        let keyFound = false;
-                        for (let k of Object.keys(rawRow)) {
-                            const upperK = k.replace(/[^A-Z0-9]/gi, '').toUpperCase();
-                            if (upperK === 'CHUTE' || upperK === 'CHUTEID' || upperK === 'ASSIGNEDCHUTE') {
-                                rawRow[k] = assignedChute; keyFound = true; break;
+                    // If a planned TRA chute exists for this bag on this specific date in chute.xlsx
+                    if (chuteLookup.has(uniqueKey)) {
+                        const assignedChute = chuteLookup.get(uniqueKey);
+                        
+                        if (assignedChute && assignedChute !== '-') {
+                            // Modify original raw row to display the TRA value in Assigned Chute
+                            let keyFound = false;
+                            for (let k of Object.keys(rawRow)) {
+                                const upperK = k.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+                                if (upperK === 'CHUTE' || upperK === 'CHUTEID' || upperK === 'ASSIGNEDCHUTE') {
+                                    rawRow[k] = assignedChute; 
+                                    keyFound = true; 
+                                    break;
+                                }
                             }
+                            if (!keyFound) rawRow['CHUTE'] = assignedChute; // Fallback if column is missing
                         }
-                        if (!keyFound) rawRow['CHUTE'] = assignedChute; 
                     }
                 }
+                
                 return rawRow;
             });
         }
