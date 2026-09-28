@@ -1597,21 +1597,19 @@
             return isNaN(num) ? null : num;
         }
 
-        // --- NEW AM/PM STRIP SECONDS LOGIC ---
+        // --- UPDATED STRIP SECONDS LOGIC (FOR STD: dd/mm/yy hh:mm) ---
         function stripSecondsFromDate(timestampStr) {
             if (!timestampStr || timestampStr === '-') return '-';
             const parts = timestampStr.split(' '); 
             if (parts.length >= 2) {
                 const timeParts = parts[1].split(':');
                 if (timeParts.length >= 2) {
-                    parts[1] = `${timeParts[0]}:${timeParts[1]}`;
+                    return `${parts[0]} ${timeParts[0]}:${timeParts[1]}`;
                 }
-                return parts.join(' ');
             }
             return timestampStr;
         }
 
-        // --- NEW AM/PM PARSER LOGIC ---
         function parseCustomDateToJS(dateStr) {
             if (!dateStr || dateStr === '-') return null;
             const parts = dateStr.split(' ');
@@ -1632,12 +1630,13 @@
 
         const excelDateRegex = /^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?$/i;
 
-        // --- NEW AM/PM FORMATTER LOGIC ---
+        // --- UPDATED FORMATTER LOGIC (FOR EVENT TIME: dd/mm/yy hh:mm:ss) ---
         function formatExcelDate(val) {
             if (val === undefined || val === null || val === '' || val === '-') return '-';
             const valStr = String(val).trim().replace(/[\s\u00a0]+/g, ' ');
             if (valStr === '' || valStr === '-') return '-';
 
+            // Handle pure Excel serial numbers
             if (/^\d+(\.\d+)?$/.test(valStr)) {
                 const serial = parseFloat(valStr);
                 if (serial > 0) {
@@ -1647,41 +1646,45 @@
                     let extraDays = 0;
                     if (total_seconds >= 86400) { total_seconds -= 86400; extraDays = 1; }
                     const dateObj = new Date((utc_days + extraDays) * 86400 * 1000);
+                    
                     const sec = total_seconds % 60;
                     const total_mins = Math.floor(total_seconds / 60);
                     const min = total_mins % 60;
                     const hr24 = Math.floor(total_mins / 60) % 24;
                     
-                    let ampm = hr24 >= 12 ? 'PM' : 'AM';
-                    let hr12 = hr24 % 12;
-                    hr12 = hr12 ? hr12 : 12;
-
-                    return `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${String(dateObj.getUTCFullYear()).slice(-2)} ${hr12}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')} ${ampm}`;
+                    return `${String(dateObj.getUTCDate()).padStart(2, '0')}/${String(dateObj.getUTCMonth() + 1).padStart(2, '0')}/${String(dateObj.getUTCFullYear()).slice(-2)} ${String(hr24).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
                 }
             }
 
+            // Handle string-based dates
             const match = valStr.match(excelDateRegex);
             if (match) {
                 let [_, p1, p2, p3, hrStr, minStr, secStr, ampm] = match;
                 let dd, mm, yyyy;
-                if (p1.length === 4) { yyyy = parseInt(p1, 10); mm = parseInt(p2, 10); dd = parseInt(p3, 10); } 
-                else { dd = parseInt(p1, 10); mm = parseInt(p2, 10); yyyy = parseInt(p3, 10); if (yyyy < 100) yyyy += 2000; }
+                
+                // Determine YY vs YYYY and DD vs MM order based on digit count
+                if (p1.length === 4) { 
+                    yyyy = parseInt(p1, 10); mm = parseInt(p2, 10); dd = parseInt(p3, 10); 
+                } else { 
+                    dd = parseInt(p1, 10); mm = parseInt(p2, 10); yyyy = parseInt(p3, 10); 
+                    if (yyyy < 100) yyyy += 2000; 
+                }
+                
                 let hr = hrStr !== undefined ? parseInt(hrStr, 10) : 0;
                 let min = minStr !== undefined ? parseInt(minStr, 10) : 0;
                 let sec = secStr !== undefined ? parseInt(secStr, 10) : 0;
                 
+                // Convert raw AM/PM text into 24-hour if it exists in the raw data
                 if (ampm) {
                     const upperAmPm = ampm.toUpperCase();
                     if (upperAmPm === 'PM' && hr < 12) hr += 12;
                     if (upperAmPm === 'AM' && hr === 12) hr = 0;
                 }
 
-                let outAmPm = hr >= 12 ? 'PM' : 'AM';
-                let outHr = hr % 12;
-                outHr = outHr ? outHr : 12;
-
-                return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy).slice(-2)} ${outHr}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')} ${outAmPm}`;
+                // Return forced 24-hour format: dd/mm/yy hh:mm:ss
+                return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy).slice(-2)} ${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
             }
+            
             return valStr;
         }
 
