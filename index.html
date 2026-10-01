@@ -685,6 +685,9 @@
     </div>
 
     <script>
+        // DOM Helper caching lookup
+        const $id = id => document.getElementById(id);
+        
         const PLOTLY_CONFIG = { responsive: true, displayModeBar: false };
         const bagDataset = new Map();
         let currentFilteredBags = []; 
@@ -697,19 +700,29 @@
         
         const areaColorPalette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#14b8a6', '#6366f1', '#eab308'];
         const areaColorMap = new Map();
+        const nonAlphaNumRegex = /[^A-Z0-9]/gi;
         
+        // Debounce Utility for Inputs
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
         // CACHED DOM ELEMENTS FOR PERFORMANCE
         const DOM = {
-            reclaimTbody: document.getElementById('reclaim-tbody'),
-            timelineTbody: document.getElementById('timelineTbody'),
-            timelineThead: document.getElementById('timelineThead'),
-            simEntriesList: document.getElementById('sim-entries-list'),
-            lblRecordCount: document.getElementById('lbl-record-count'),
-            lblReclaimName: document.getElementById('lbl-reclaim-name'),
-            kpiBags: document.getElementById('kpi-bags'),
-            kpiFlights: document.getElementById('kpi-flights'),
-            btnExportExcel: document.getElementById('btn-export-excel'),
-            simSummaryTbody: document.getElementById('sim-summary-tbody')
+            reclaimTbody: $id('reclaim-tbody'),
+            timelineTbody: $id('timelineTbody'),
+            timelineThead: $id('timelineThead'),
+            simEntriesList: $id('sim-entries-list'),
+            lblRecordCount: $id('lbl-record-count'),
+            lblReclaimName: $id('lbl-reclaim-name'),
+            kpiBags: $id('kpi-bags'),
+            kpiFlights: $id('kpi-flights'),
+            btnExportExcel: $id('btn-export-excel'),
+            simSummaryTbody: $id('sim-summary-tbody')
         };
 
         let filterState = { flight: ['ALL'], reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
@@ -727,15 +740,15 @@
         let isTimelineTableExpanded = false;
 
         function toggleDataTable() {
-            const section = document.getElementById('timelineSection');
-            const modalBody = document.getElementById('timeline-modal-body');
-            const overlay = document.getElementById('timeline-expanded-modal');
-            const btn = document.getElementById('dataTableBtn');
-            const tableContainer = document.getElementById('timelineTableContainer');
-            const chartDiv = document.getElementById('chart-timeline');
+            const section = $id('timelineSection');
+            const modalBody = $id('timeline-modal-body');
+            const overlay = $id('timeline-expanded-modal');
+            const btn = $id('dataTableBtn');
+            const tableContainer = $id('timelineTableContainer');
+            const chartDiv = $id('chart-timeline');
 
             if (!isTimelineTableExpanded) {
-                let placeholder = document.getElementById('timeline-placeholder');
+                let placeholder = $id('timeline-placeholder');
                 if (!placeholder) {
                     placeholder = document.createElement('div');
                     placeholder.id = 'timeline-placeholder';
@@ -763,7 +776,7 @@
 
                 setTimeout(() => { Plotly.Plots.resize('chart-timeline'); }, 150);
             } else {
-                const placeholder = document.getElementById('timeline-placeholder');
+                const placeholder = $id('timeline-placeholder');
                 if (placeholder && placeholder.parentNode) {
                     placeholder.parentNode.insertBefore(section, placeholder);
                     placeholder.style.display = 'none';
@@ -788,11 +801,11 @@
         }
 
         function saveTimelineAsJPEG() {
-            const section = document.getElementById('timelineSection');
+            const section = $id('timelineSection');
             const btnGroup = section.querySelector('.flex.items-center.space-x-3');
             const tableScrollDiv = section.querySelector('.overflow-x-auto.sim-scroll');
-            const modalBody = document.getElementById('timeline-modal-body');
-            const modalWrapper = document.getElementById('timeline-expanded-modal').firstElementChild;
+            const modalBody = $id('timeline-modal-body');
+            const modalWrapper = $id('timeline-expanded-modal').firstElementChild;
 
             const btnOrigDisplay = btnGroup.style.display;
             btnGroup.style.display = 'none';
@@ -844,7 +857,7 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            const scrollArea = document.getElementById('timelineScrollArea');
+            const scrollArea = $id('timelineScrollArea');
             if (scrollArea) {
                 let isDown = false;
                 let startX;
@@ -884,7 +897,7 @@
                 return;
             }
 
-            const interval = document.getElementById('slicer-interval').value;
+            const interval = $id('slicer-interval').value;
             const tracesMap = new Map();
             const globalTimeMap = new Map();
             const uniqueDates = new Set(); 
@@ -975,7 +988,7 @@
         }
 
         function formatDecimalToHHmm(decimalHours) {
-            if (decimalHours === null || decimalHours === undefined || isNaN(decimalHours)) return '-';
+            if (decimalHours == null || isNaN(decimalHours)) return '-';
             const isNegative = decimalHours < 0;
             const absHours = Math.abs(decimalHours);
             let h = Math.floor(absHours);
@@ -985,14 +998,14 @@
         }
 
         function setupDropdownToggle(btnId, menuId) {
-            const btn = document.getElementById(btnId);
-            const menu = document.getElementById(menuId);
+            const btn = $id(btnId);
+            const menu = $id(menuId);
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 document.querySelectorAll('.multi-select-menu').forEach(m => {
                     if (m.id !== menuId) m.classList.add('hidden');
                 });
-                document.getElementById('custom-flight-menu').classList.add('hidden');
+                $id('custom-flight-menu').classList.add('hidden');
                 menu.classList.toggle('hidden');
             });
             document.addEventListener('click', (e) => {
@@ -1000,7 +1013,7 @@
             });
         }
 
-        document.getElementById('btn-save-as').addEventListener('click', saveDashboardAsHTML);
+        $id('btn-save-as').addEventListener('click', saveDashboardAsHTML);
 
         function saveDashboardAsHTML() {
             if (bagDataset.size === 0) return alert("No dataset loaded to save.");
@@ -1055,16 +1068,16 @@
             setDefaultDateFilters();
             populateFilterDropdowns();
 
-            document.getElementById('btn-save-as').classList.remove('hidden');
-            document.getElementById('kpi-section').classList.remove('hidden');
-            document.getElementById('charts-section').classList.remove('hidden');
+            $id('btn-save-as').classList.remove('hidden');
+            $id('kpi-section').classList.remove('hidden');
+            $id('charts-section').classList.remove('hidden');
             applyFiltersAndRender();
         }
 
         function setOptimizationState(state) {
             isOptimized = state;
-            const btnOptToggle = document.getElementById('btn-optimize-toggle');
-            const btnResetSim = document.getElementById('btn-reset-sim');
+            const btnOptToggle = $id('btn-optimize-toggle');
+            const btnResetSim = $id('btn-reset-sim');
             if (state) {
                 if (btnOptToggle) {
                     btnOptToggle.innerHTML = `OPTIMIZED`; 
@@ -1082,31 +1095,31 @@
 
         document.addEventListener('click', (e) => {
             const btnOpt = e.target.closest('#btn-optimize-toggle');
-            if (btnOpt && !isOptimized) document.getElementById('opt-deploy-modal').classList.remove('hidden');
+            if (btnOpt && !isOptimized) $id('opt-deploy-modal').classList.remove('hidden');
             const btnReset = e.target.closest('#btn-reset-sim');
-            if (btnReset) document.getElementById('reset-confirm-modal').classList.remove('hidden');
+            if (btnReset) $id('reset-confirm-modal').classList.remove('hidden');
         });
 
-        document.getElementById('btn-cancel-reset').addEventListener('click', () => document.getElementById('reset-confirm-modal').classList.add('hidden'));
-        document.getElementById('btn-confirm-reset').addEventListener('click', () => {
+        $id('btn-cancel-reset').addEventListener('click', () => $id('reset-confirm-modal').classList.add('hidden'));
+        $id('btn-confirm-reset').addEventListener('click', () => {
             simEntries = []; 
             triggerSimulation();
             setOptimizationState(false); 
-            document.getElementById('reset-confirm-modal').classList.add('hidden');
+            $id('reset-confirm-modal').classList.add('hidden');
         });
-        document.getElementById('reset-confirm-modal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('reset-confirm-modal')) document.getElementById('reset-confirm-modal').classList.add('hidden');
+        $id('reset-confirm-modal').addEventListener('click', (e) => {
+            if (e.target === $id('reset-confirm-modal')) $id('reset-confirm-modal').classList.add('hidden');
         });
-        document.getElementById('btn-cancel-deploy').addEventListener('click', () => document.getElementById('opt-deploy-modal').classList.add('hidden'));
-        document.getElementById('btn-run-deploy').addEventListener('click', () => {
-            document.getElementById('opt-deploy-modal').classList.add('hidden');
+        $id('btn-cancel-deploy').addEventListener('click', () => $id('opt-deploy-modal').classList.add('hidden'));
+        $id('btn-run-deploy').addEventListener('click', () => {
+            $id('opt-deploy-modal').classList.add('hidden');
             runAutoOptimization();
             setOptimizationState(true); 
         });
 
         function runAutoOptimization() {
             simEntries = []; 
-            const intervalType = document.getElementById('slicer-interval').value;
+            const intervalType = $id('slicer-interval').value;
             let durationMins = 60;
             if (intervalType === '15min') durationMins = 15;
             if (intervalType === 'daily') durationMins = 1440;
@@ -1158,13 +1171,13 @@
             triggerSimulation();
         }
 
-        const simSummaryModal = document.getElementById('sim-summary-modal');
+        const simSummaryModal = $id('sim-summary-modal');
         if (simSummaryModal) {
-            document.getElementById('close-sim-summary-modal').addEventListener('click', () => simSummaryModal.classList.add('hidden'));
+            $id('close-sim-summary-modal').addEventListener('click', () => simSummaryModal.classList.add('hidden'));
             simSummaryModal.addEventListener('click', (e) => {
                 if (e.target === simSummaryModal) simSummaryModal.classList.add('hidden');
             });
-            const simChartTypeSelect = document.getElementById('sim-chart-type-select');
+            const simChartTypeSelect = $id('sim-chart-type-select');
             if (simChartTypeSelect) {
                 simChartTypeSelect.addEventListener('change', (e) => {
                     simChartType = e.target.value; 
@@ -1197,12 +1210,12 @@
             });
 
             let avgWorkload = tripCount > 0 ? Math.round(totalMins / tripCount) : 0;
-            document.getElementById('sim-sum-date').textContent = dateDisplay;
-            document.getElementById('sim-sum-area').textContent = headerReclaimName;
-            document.getElementById('sim-sum-bags').textContent = (totalLorry + totalTrolley).toLocaleString();
-            document.getElementById('sim-sum-lorry').textContent = totalLorry.toLocaleString();
-            document.getElementById('sim-sum-trolley').textContent = totalTrolley.toLocaleString();
-            document.getElementById('sim-sum-avg-workload').textContent = avgWorkload + 'm';
+            $id('sim-sum-date').textContent = dateDisplay;
+            $id('sim-sum-area').textContent = headerReclaimName;
+            $id('sim-sum-bags').textContent = (totalLorry + totalTrolley).toLocaleString();
+            $id('sim-sum-lorry').textContent = totalLorry.toLocaleString();
+            $id('sim-sum-trolley').textContent = totalTrolley.toLocaleString();
+            $id('sim-sum-avg-workload').textContent = avgWorkload + 'm';
 
             const sortedTrips = [...generatedTrips].sort((a,b) => a.time.localeCompare(b.time) || a.type.localeCompare(b.type));
             
@@ -1256,8 +1269,8 @@
             }, 350);
         };
 
-        const modalFlightTooltip = document.getElementById('modal-flight-tooltip');
-        const modalFlightTooltipContent = document.getElementById('modal-flight-tooltip-content');
+        const modalFlightTooltip = $id('modal-flight-tooltip');
+        const modalFlightTooltipContent = $id('modal-flight-tooltip-content');
 
         DOM.simSummaryTbody.addEventListener('mouseover', (e) => {
             const el = e.target.closest('.modal-flight-hover');
@@ -1338,7 +1351,7 @@
             Plotly.react('sim-summary-chart', [trace1, trace2, trace3, trace4], layout, PLOTLY_CONFIG);
         }
 
-        const btnExportSim = document.getElementById('btn-export-sim');
+        const btnExportSim = $id('btn-export-sim');
         if (btnExportSim) {
             btnExportSim.addEventListener('click', () => {
                 if(generatedTrips.length === 0) return alert('No simulation data to export.');
@@ -1353,7 +1366,7 @@
         document.querySelectorAll('.export-chart-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const targetId = e.currentTarget.getAttribute('data-target');
-                const chartDiv = document.getElementById(targetId);
+                const chartDiv = $id(targetId);
                 if (chartDiv && chartDiv.data && chartDiv.data.length > 0) {
                     Plotly.downloadImage(chartDiv, { format: 'jpeg', width: chartDiv.clientWidth, height: chartDiv.clientHeight, filename: `${targetId}_export`, scale: 2 });
                 } else {
@@ -1362,20 +1375,20 @@
             });
         });
 
-        const btnOverlapDetails = document.getElementById('btn-overlap-details');
-        const overlapModal = document.getElementById('overlap-modal');
-        const closeOverlapModal = document.getElementById('close-overlap-modal');
+        const btnOverlapDetails = $id('btn-overlap-details');
+        const overlapModal = $id('overlap-modal');
+        const closeOverlapModal = $id('close-overlap-modal');
 
         btnOverlapDetails.addEventListener('click', () => overlapModal.classList.remove('hidden'));
         closeOverlapModal.addEventListener('click', () => overlapModal.classList.add('hidden'));
         overlapModal.addEventListener('click', (e) => { if (e.target === overlapModal) overlapModal.classList.add('hidden'); });
 
-        const tripModal = document.getElementById('trip-modal');
-        document.getElementById('close-trip-modal').addEventListener('click', () => tripModal.classList.add('hidden'));
+        const tripModal = $id('trip-modal');
+        $id('close-trip-modal').addEventListener('click', () => tripModal.classList.add('hidden'));
         tripModal.addEventListener('click', (e) => { if (e.target === tripModal) tripModal.classList.add('hidden'); });
 
         let currentOpenTripId = null;
-        document.getElementById('btn-delete-trip').addEventListener('click', () => {
+        $id('btn-delete-trip').addEventListener('click', () => {
             if (currentOpenTripId) {
                 simEntries = simEntries.filter(e => e.id !== currentOpenTripId);
                 tripModal.classList.add('hidden');
@@ -1389,7 +1402,7 @@
             if (!entry) return;
             
             currentOpenTripId = tripId;
-            document.getElementById('trip-modal-title').innerHTML = `Transport Details: <span class="text-blue-600">${entry.name}</span> at ${entry.time}`;
+            $id('trip-modal-title').innerHTML = `Transport Details: <span class="text-blue-600">${entry.name}</span> at ${entry.time}`;
             
             const grouped = {};
             (entry.bags || []).forEach(b => {
@@ -1399,7 +1412,7 @@
                 if (b.hourBeforeStdNum !== null) { grouped[key].sumHour += b.hourBeforeStdNum; grouped[key].validCount++; }
             });
 
-            const tbody = document.getElementById('trip-modal-body');
+            const tbody = $id('trip-modal-body');
             if (Object.keys(grouped).length > 0) {
                 tbody.innerHTML = Object.values(grouped).sort((a,b) => b.count - a.count).map(g => {
                     let avgStr = '-', hourTextColor = 'text-gray-600';
@@ -1415,12 +1428,12 @@
             } else {
                 tbody.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-gray-400 italic">No bags assigned to this transport.</td></tr>`;
             }
-            document.getElementById('trip-modal-total').innerHTML = `Processed: <b>${entry.bags.length}</b> <span class="mx-2 text-gray-300">|</span> Trips: <b>${entry.totalTrips}</b> <span class="mx-2 text-gray-300">|</span> Cap: <b>${entry.cap}/trip</b>`;
+            $id('trip-modal-total').innerHTML = `Processed: <b>${entry.bags.length}</b> <span class="mx-2 text-gray-300">|</span> Trips: <b>${entry.totalTrips}</b> <span class="mx-2 text-gray-300">|</span> Cap: <b>${entry.cap}/trip</b>`;
             tripModal.classList.remove('hidden');
         };
 
-        const tableCustomTooltip = document.getElementById('table-custom-tooltip');
-        const tableTooltipContent = document.getElementById('table-tooltip-content');
+        const tableCustomTooltip = $id('table-custom-tooltip');
+        const tableTooltipContent = $id('table-tooltip-content');
 
         DOM.reclaimTbody.addEventListener('mouseover', (e) => {
             const cell = e.target.closest('.flight-cell');
@@ -1457,13 +1470,15 @@
             tableCustomTooltip.classList.remove('opacity-100', 'visible');
         });
 
-        document.getElementById('upload').addEventListener('change', handleFileUpload);
+        $id('upload').addEventListener('change', handleFileUpload);
         
         const filterIds = ['filter-start-date', 'filter-end-date', 'slicer-interval', 'rummage-sort'];
         function triggerFilters() { setTimeout(() => { applyFiltersAndRender(); }, 10); }
-        filterIds.forEach(id => document.getElementById(id).addEventListener('change', triggerFilters));
-        document.getElementById('slicer-search-bag').addEventListener('input', triggerFilters);
-        document.getElementById('reset-filters').addEventListener('click', resetFilters);
+        filterIds.forEach(id => $id(id).addEventListener('change', triggerFilters));
+        
+        // Debounce search input to avoid lag
+        $id('slicer-search-bag').addEventListener('input', debounce(triggerFilters, 300));
+        $id('reset-filters').addEventListener('click', resetFilters);
 
         DOM.btnExportExcel.addEventListener('click', () => {
             if (currentFilteredBags.length === 0) return;
@@ -1474,9 +1489,9 @@
             XLSX.writeFile(wb, "Rummage_Details_Export.xlsx");
         });
 
-        const flightMenu = document.getElementById('custom-flight-menu');
-        const flightSelect = document.getElementById('custom-flight-select');
-        const flightSearchInput = document.getElementById('flight-search-input');
+        const flightMenu = $id('custom-flight-menu');
+        const flightSelect = $id('custom-flight-select');
+        const flightSearchInput = $id('flight-search-input');
 
         flightSelect.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -1504,19 +1519,19 @@
             triggerFilters();
         }
 
-        document.getElementById('cb-all-flights').addEventListener('change', (e) => {
+        $id('cb-all-flights').addEventListener('change', (e) => {
             if (e.target.checked) { filterState.flight = ['ALL']; updateFlightUI(); triggerFilters(); } else { e.target.checked = true; }
         });
 
-        document.getElementById('cb-shifted-flights').addEventListener('change', (e) => {
+        $id('cb-shifted-flights').addEventListener('change', (e) => {
             filterState.flight = e.target.checked ? ['SHIFTED_FLIGHTS'] : ['ALL'];
             updateFlightUI();
             triggerFilters();
         });
 
         function updateFlightUI() {
-            const textEl = document.getElementById('custom-flight-text');
-            const container = document.getElementById('selected-flights-container');
+            const textEl = $id('custom-flight-text');
+            const container = $id('selected-flights-container');
             if (filterState.flight.includes('ALL')) {
                 textEl.textContent = 'All Flights'; container.classList.add('hidden'); container.classList.remove('flex');
             } else if (filterState.flight.includes('SHIFTED_FLIGHTS')) {
@@ -1526,8 +1541,8 @@
                 container.innerHTML = filterState.flight.map(f => `<span class="bg-blue-100 text-blue-700 text-[0.65rem] font-bold px-2 py-0.5 rounded border border-blue-200 inline-block">${f}</span>`).join('');
                 container.classList.remove('hidden'); container.classList.add('flex');
             }
-            document.getElementById('cb-all-flights').checked = filterState.flight.includes('ALL');
-            document.getElementById('cb-shifted-flights').checked = filterState.flight.includes('SHIFTED_FLIGHTS');
+            $id('cb-all-flights').checked = filterState.flight.includes('ALL');
+            $id('cb-shifted-flights').checked = filterState.flight.includes('SHIFTED_FLIGHTS');
             document.querySelectorAll('.flight-checkbox').forEach(cb => { cb.checked = filterState.flight.includes(cb.value); });
         }
 
@@ -1538,7 +1553,7 @@
         function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
-            const overlay = document.getElementById('loading-overlay');
+            const overlay = $id('loading-overlay');
             overlay.classList.remove('hidden');
 
             setTimeout(() => {
@@ -1553,9 +1568,9 @@
                             processBagEntities(rawRows);
                             setDefaultDateFilters();
                             populateFilterDropdowns();
-                            document.getElementById('btn-save-as').classList.remove('hidden');
-                            document.getElementById('kpi-section').classList.remove('hidden');
-                            document.getElementById('charts-section').classList.remove('hidden');
+                            $id('btn-save-as').classList.remove('hidden');
+                            $id('kpi-section').classList.remove('hidden');
+                            $id('charts-section').classList.remove('hidden');
                             applyFiltersAndRender();
                         } catch (err) { console.error("Data Processing Error:", err); } finally { overlay.classList.add('hidden'); }
                     };
@@ -1567,7 +1582,7 @@
         function normalizeRowKeys(row) {
             const norm = {};
             for (let key in row) {
-                norm[key.replace(/[^A-Z0-9]/gi, '').toUpperCase()] = row[key];
+                norm[key.replace(nonAlphaNumRegex, '').toUpperCase()] = row[key];
             }
             norm._original = row; 
             return norm;
@@ -1577,13 +1592,13 @@
             if (!normRow) return '-';
             for (let i = 0; i < possibleKeys.length; i++) {
                 const val = normRow[possibleKeys[i]];
-                if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+                if (val != null && String(val).trim() !== '') return val;
             }
             return '-';
         }
 
         function parseHourString(timeStr) {
-            if (timeStr === undefined || timeStr === null || timeStr === '') return null;
+            if (timeStr == null || timeStr === '') return null;
             const str = String(timeStr).trim();
             if (str === '-') return null;
             let isNegative = str.startsWith('-');
@@ -1597,7 +1612,6 @@
             return isNaN(num) ? null : num;
         }
 
-        // --- UPDATED STRIP SECONDS LOGIC (FOR STD: dd/mm/yy hh:mm) ---
         function stripSecondsFromDate(timestampStr) {
             if (!timestampStr || timestampStr === '-') return '-';
             const parts = timestampStr.split(' '); 
@@ -1630,13 +1644,11 @@
 
         const excelDateRegex = /^(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?(?:\s*(AM|PM))?)?$/i;
 
-        // --- UPDATED FORMATTER LOGIC (FOR EVENT TIME: dd/mm/yy hh:mm:ss) ---
         function formatExcelDate(val) {
-            if (val === undefined || val === null || val === '' || val === '-') return '-';
+            if (val == null || val === '' || val === '-') return '-';
             const valStr = String(val).trim().replace(/[\s\u00a0]+/g, ' ');
             if (valStr === '' || valStr === '-') return '-';
 
-            // Handle pure Excel serial numbers
             if (/^\d+(\.\d+)?$/.test(valStr)) {
                 const serial = parseFloat(valStr);
                 if (serial > 0) {
@@ -1656,13 +1668,11 @@
                 }
             }
 
-            // Handle string-based dates
             const match = valStr.match(excelDateRegex);
             if (match) {
                 let [_, p1, p2, p3, hrStr, minStr, secStr, ampm] = match;
                 let dd, mm, yyyy;
                 
-                // Determine YY vs YYYY and DD vs MM order based on digit count
                 if (p1.length === 4) { 
                     yyyy = parseInt(p1, 10); mm = parseInt(p2, 10); dd = parseInt(p3, 10); 
                 } else { 
@@ -1674,14 +1684,12 @@
                 let min = minStr !== undefined ? parseInt(minStr, 10) : 0;
                 let sec = secStr !== undefined ? parseInt(secStr, 10) : 0;
                 
-                // Convert raw AM/PM text into 24-hour if it exists in the raw data
                 if (ampm) {
                     const upperAmPm = ampm.toUpperCase();
                     if (upperAmPm === 'PM' && hr < 12) hr += 12;
                     if (upperAmPm === 'AM' && hr === 12) hr = 0;
                 }
 
-                // Return forced 24-hour format: dd/mm/yy hh:mm:ss
                 return `${String(dd).padStart(2, '0')}/${String(mm).padStart(2, '0')}/${String(yyyy).slice(-2)} ${String(hr).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
             }
             
@@ -1743,13 +1751,13 @@
             let maxDate = '';
             bagDataset.forEach(bag => { if (bag.dateOnlyISO && bag.dateOnlyISO > maxDate) maxDate = bag.dateOnlyISO; });
             if (maxDate) {
-                document.getElementById('filter-start-date').value = maxDate;
-                document.getElementById('filter-end-date').value = maxDate;
+                $id('filter-start-date').value = maxDate;
+                $id('filter-end-date').value = maxDate;
             }
         }
 
         function populateMultiSelect(menuId, textId, optionsArray, defaultText, stateArray, isBlue = false) {
-            const menu = document.getElementById(menuId);
+            const menu = $id(menuId);
             const html = [];
             html.push(`<label class="flex items-center p-2 hover:bg-gray-50 cursor-pointer text-sm font-semibold border-b text-blue-600"><input type="checkbox" value="ALL" class="mr-2 rounded" ${stateArray.includes('ALL') ? 'checked' : ''}> <span class="truncate">${defaultText}</span></label>`);
             
@@ -1777,7 +1785,7 @@
                         }
                         if (stateArray.length === 0) { stateArray.push('ALL'); allCb.checked = true; }
                     }
-                    const textEl = document.getElementById(textId);
+                    const textEl = $id(textId);
                     if (stateArray.includes('ALL')) textEl.textContent = defaultText;
                     else if (stateArray.length === 1) textEl.textContent = stateArray[0];
                     else textEl.textContent = `${stateArray.length} Selected`;
@@ -1800,7 +1808,7 @@
                 if(!areaColorMap.has(area)) { areaColorMap.set(area, areaColorPalette[cIdx % areaColorPalette.length]); cIdx++; }
             });
 
-            const flightOptionsList = document.getElementById('flight-options-list');
+            const flightOptionsList = $id('flight-options-list');
             const flightHtml = [];
             Array.from(flights).sort().forEach(f => {
                 flightHtml.push(`<label class="flex items-center px-2 py-1.5 hover:bg-gray-50 cursor-pointer text-sm flight-item rounded-md text-gray-700 font-medium transition-colors w-full"><input type="checkbox" value="${f}" class="mr-2 rounded flight-checkbox" ${filterState.flight.includes(f) ? 'checked' : ''}> <span class="truncate">${f}</span></label>`);
@@ -1817,23 +1825,33 @@
         }
 
         function applyFiltersAndRender() {
-            const startDateStr = document.getElementById('filter-start-date').value;
-            const endDateStr = document.getElementById('filter-end-date').value;
-            const searchBagTag = document.getElementById('slicer-search-bag').value.trim().toLowerCase();
+            const startDateStr = $id('filter-start-date').value;
+            const endDateStr = $id('filter-end-date').value;
+            const searchBagTag = $id('slicer-search-bag').value.trim().toLowerCase();
+
+            // PRE-COMPUTE filter conditionals to skip array logic inside loop execution
+            const isAllFlights = filterState.flight.includes('ALL');
+            const isShiftedFlights = filterState.flight.includes('SHIFTED_FLIGHTS');
+            const isAllReasons = filterState.reason.includes('ALL');
+            const isAllHandlers = filterState.handler.includes('ALL');
+            const isAllReclaims = filterState.reclaim.includes('ALL');
 
             const filteredBags = [];
             bagDataset.forEach((bag) => {
                 if (startDateStr && bag.dateOnlyISO < startDateStr) return;
                 if (endDateStr && bag.dateOnlyISO > endDateStr) return;
-                if (filterState.flight.includes('SHIFTED_FLIGHTS')) {
+                
+                if (isShiftedFlights) {
                     if (!SHIFTED_FLIGHTS_LIST.includes(bag.flight)) return;
-                } else if (!filterState.flight.includes('ALL')) {
+                } else if (!isAllFlights) {
                     if (!filterState.flight.includes(bag.flight)) return;
                 }
-                if (!filterState.reason.includes('ALL') && !filterState.reason.includes(bag.reason)) return;
-                if (!filterState.handler.includes('ALL') && !filterState.handler.includes(bag.groundHandler)) return;
-                if (!filterState.reclaim.includes('ALL') && !filterState.reclaim.includes(bag.rummageArea)) return;
+                
+                if (!isAllReasons && !filterState.reason.includes(bag.reason)) return;
+                if (!isAllHandlers && !filterState.handler.includes(bag.groundHandler)) return;
+                if (!isAllReclaims && !filterState.reclaim.includes(bag.rummageArea)) return;
                 if (searchBagTag !== '' && !bag.bagTagId.toLowerCase().includes(searchBagTag)) return;
+                
                 filteredBags.push(bag);
             });
 
@@ -1844,7 +1862,7 @@
                 DOM.btnExportExcel.classList.add('hidden'); DOM.btnExportExcel.classList.remove('flex');
             }
 
-            DOM.lblReclaimName.textContent = filterState.reclaim.includes('ALL') ? 'All Areas' : filterState.reclaim.join(', ');
+            DOM.lblReclaimName.textContent = isAllReclaims ? 'All Areas' : filterState.reclaim.join(', ');
             DOM.lblRecordCount.textContent = filteredBags.length > 500 ? `${filteredBags.length.toLocaleString()} (Showing top 500)` : filteredBags.length.toLocaleString();
 
             renderKPIs(filteredBags);
@@ -1858,7 +1876,7 @@
         }
 
         function renderDurationHistogram(bags) {
-            const chartDiv = document.getElementById('chart-histogram');
+            const chartDiv = $id('chart-histogram');
             if (bags.length === 0) { try { Plotly.purge(chartDiv); } catch(e) {} return; }
 
             const durations = bags.map(b => b.hourBeforeStdNum).filter(val => val !== null && !isNaN(val));
@@ -1886,7 +1904,7 @@
             const mtbFlightsCount = new Set(bags.filter(b => { const c = (b.chute || '').toUpperCase(); return c.startsWith('MA') || c.startsWith('MB'); }).map(b => b.flight)).size;
             const satFlightsCount = new Set(bags.filter(b => { const c = (b.chute || '').toUpperCase(); return c.startsWith('MC1') || c.startsWith('MC2'); }).map(b => b.flight)).size;
 
-            const intervalSelect = document.getElementById('slicer-interval');
+            const intervalSelect = $id('slicer-interval');
             const interval = intervalSelect.value;
             const intervalText = intervalSelect.options[intervalSelect.selectedIndex].text;
             const globalTimeMap = new Map();
@@ -1937,14 +1955,14 @@
             DOM.kpiBags.textContent = totalBags.toLocaleString();
             DOM.kpiFlights.textContent = totalFlights.toLocaleString();
             
-            if(document.getElementById('tooltip-flights-mtb')) document.getElementById('tooltip-flights-mtb').innerHTML = `<span class="text-gray-400">MTB:</span> <span class="font-bold text-green-400 ml-1">${mtbFlightsCount}</span>`;
-            if(document.getElementById('tooltip-flights-sat')) document.getElementById('tooltip-flights-sat').innerHTML = `<span class="text-gray-400">SAT:</span> <span class="font-bold text-yellow-400 ml-1">${satFlightsCount}</span>`;
+            if($id('tooltip-flights-mtb')) $id('tooltip-flights-mtb').innerHTML = `<span class="text-gray-400">MTB:</span> <span class="font-bold text-green-400 ml-1">${mtbFlightsCount}</span>`;
+            if($id('tooltip-flights-sat')) $id('tooltip-flights-sat').innerHTML = `<span class="text-gray-400">SAT:</span> <span class="font-bold text-yellow-400 ml-1">${satFlightsCount}</span>`;
 
-            document.getElementById('kpi-avg-bags-label').textContent = `Total Bags (${intervalText})`;
-            document.getElementById('kpi-avg-bags').textContent = avgBagsInterval.toLocaleString();
-            document.getElementById('kpi-max-bags-interval').textContent = maxBagsInterval.toLocaleString();
+            $id('kpi-avg-bags-label').textContent = `Total Bags (${intervalText})`;
+            $id('kpi-avg-bags').textContent = avgBagsInterval.toLocaleString();
+            $id('kpi-max-bags-interval').textContent = maxBagsInterval.toLocaleString();
 
-            const tooltipBoxInterval = document.getElementById('tooltip-max-bags-interval');
+            const tooltipBoxInterval = $id('tooltip-max-bags-interval');
             if (tooltipBoxInterval && maxBagsTime) {
                 const d = new Date(maxBagsTime);
                 const hh = String(d.getHours()).padStart(2, '0'), min = String(d.getMinutes()).padStart(2, '0');
@@ -1959,13 +1977,13 @@
                 `;
             } else if (tooltipBoxInterval) { tooltipBoxInterval.innerHTML = ''; }
 
-            document.getElementById('kpi-avg-time-std').textContent = avgHourStd;
-            const kpiMaxEl = document.getElementById('kpi-max-time-std');
+            $id('kpi-avg-time-std').textContent = avgHourStd;
+            const kpiMaxEl = $id('kpi-max-time-std');
             kpiMaxEl.textContent = maxHourStdRaw; kpiMaxEl.className = `text-xl ${maxColorClass}`;
-            const kpiMinEl = document.getElementById('kpi-min-time-std');
+            const kpiMinEl = $id('kpi-min-time-std');
             kpiMinEl.textContent = minHourStdRaw; kpiMinEl.className = `text-xl ${minColorClass}`;
             
-            const tooltipBox = document.getElementById('tooltip-maxmin-std');
+            const tooltipBox = $id('tooltip-maxmin-std');
             if(tooltipBox && validCount > 0 && maxBagForMinMax && minBag) {
                 tooltipBox.innerHTML = `
                     <div class="font-bold text-gray-300 uppercase tracking-wide border-b border-gray-600 pb-1 mb-2">DETAILS</div>
@@ -1986,8 +2004,8 @@
             } else if (tooltipBox) { tooltipBox.innerHTML = ``; }
         }
         
-        document.getElementById('btn-add-sim').addEventListener('click', () => {
-            const time = document.getElementById('sim-input-time').value, type = document.getElementById('sim-in-type').value, cap = parseInt(document.getElementById('sim-in-cap').value);
+        $id('btn-add-sim').addEventListener('click', () => {
+            const time = $id('sim-input-time').value, type = $id('sim-in-type').value, cap = parseInt($id('sim-in-cap').value);
             if (!time || !time.includes(':') || isNaN(cap) || cap < 1) return;
             const newId = Date.now().toString() + Math.floor(Math.random()*1000);
             const sameTypeInputs = simEntries.filter(e => e.time === time && e.type === type).length;
@@ -2002,7 +2020,7 @@
             setOptimizationState(false); 
         };
 
-        ['sim-f-load', 'sim-f-unload', 'sim-f-eff', 'sim-f-mm', 'sim-f-ss', 'sim-f-ms'].forEach(id => document.getElementById(id).addEventListener('input', triggerSimulation));
+        ['sim-f-load', 'sim-f-unload', 'sim-f-eff', 'sim-f-mm', 'sim-f-ss', 'sim-f-ms'].forEach(id => $id(id).addEventListener('input', triggerSimulation));
 
         function triggerSimulation() { generateTrips(); renderSimUI(); }
 
@@ -2010,9 +2028,9 @@
             generatedTrips = [];
             if(simEntries.length === 0) return;
 
-            const valLoad = parseFloat(document.getElementById('sim-f-load').value) || 0, valUnload = parseFloat(document.getElementById('sim-f-unload').value) || 0, valEff = parseFloat(document.getElementById('sim-f-eff').value) || 100;
-            const valMM = parseFloat(document.getElementById('sim-f-mm').value) || 0, valSS = parseFloat(document.getElementById('sim-f-ss').value) || 0, valMS = parseFloat(document.getElementById('sim-f-ms').value) || 0;
-            const intervalType = document.getElementById('slicer-interval').value;
+            const valLoad = parseFloat($id('sim-f-load').value) || 0, valUnload = parseFloat($id('sim-f-unload').value) || 0, valEff = parseFloat($id('sim-f-eff').value) || 100;
+            const valMM = parseFloat($id('sim-f-mm').value) || 0, valSS = parseFloat($id('sim-f-ss').value) || 0, valMS = parseFloat($id('sim-f-ms').value) || 0;
+            const intervalType = $id('slicer-interval').value;
 
             const entriesByTime = {};
             simEntries.forEach(e => { if(!entriesByTime[e.time]) entriesByTime[e.time] = []; entriesByTime[e.time].push(e); });
@@ -2125,7 +2143,7 @@
 
             Object.keys(entriesByTime).sort().forEach(timeStr => {
                 const fleet = tripsByTime[timeStr] || [];
-                const intervalType = document.getElementById('slicer-interval').value;
+                const intervalType = $id('slicer-interval').value;
                 const tParts = timeStr.split(':');
                 const targetMins = parseInt(tParts[0]) * 60 + parseInt(tParts[1]);
                 let durationMins = (intervalType === '15min') ? 15 : (intervalType === 'daily') ? 1440 : 60;
@@ -2195,12 +2213,12 @@
             });
             DOM.simEntriesList.innerHTML = simHtmlList.join('');
             
-            document.getElementById('sim-out-bags').textContent = globalTotalBags.toLocaleString();
+            $id('sim-out-bags').textContent = globalTotalBags.toLocaleString();
             let displayTime = Math.round(globalTotalMins) + 'm';
             if (globalTotalMins > 60) displayTime = `${Math.floor(globalTotalMins / 60)}h ${Math.round(globalTotalMins % 60)}m`;
-            document.getElementById('sim-out-duration').textContent = displayTime;
+            $id('sim-out-duration').textContent = displayTime;
             
-            const maxWlEl = document.getElementById('out-max-workload'), maxWlDateTimeEl = document.getElementById('out-max-workload-datetime'), maxWlTooltip = document.getElementById('out-max-workload-tooltip');
+            const maxWlEl = $id('out-max-workload'), maxWlDateTimeEl = $id('out-max-workload-datetime'), maxWlTooltip = $id('out-max-workload-tooltip');
             if (simEntries.length > 0 && maxWorkloadDetails) {
                 maxWlEl.innerHTML = `${Math.round(globalMaxWorkload)} <span class="text-sm font-semibold text-teal-500 ml-0.5">minutes</span>`;
                 maxWlDateTimeEl.textContent = `${maxWorkloadDetails.date} ${maxWorkloadDetails.time}`;
@@ -2210,7 +2228,7 @@
                 maxWlEl.textContent = '-'; maxWlDateTimeEl.textContent = '-'; maxWlTooltip.innerHTML = ''; maxWlTooltip.classList.add('hidden');
             }
 
-            const maxTransEl = document.getElementById('out-max-transports'), maxTransDateTimeEl = document.getElementById('out-max-transports-datetime'), maxTransTooltip = document.getElementById('out-max-transports-tooltip');
+            const maxTransEl = $id('out-max-transports'), maxTransDateTimeEl = $id('out-max-transports-datetime'), maxTransTooltip = $id('out-max-transports-tooltip');
             if (simEntries.length > 0 && maxTransDetails && globalMaxTransports > 0) {
                 maxTransEl.textContent = globalMaxTransports; maxTransDateTimeEl.textContent = `${maxTransDetails.date} ${maxTransDetails.time}`;
                 maxTransTooltip.innerHTML = `<div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">FLEET DETAILS</div><div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1">${maxTransDetails.date}</span></div><div class="mb-1"><span class="text-gray-400">Time:</span> <span class="font-bold text-white ml-1">${maxTransDetails.time}</span></div><div class="mb-1"><span class="text-gray-400">Lorry Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.lorryCount}</span></div><div><span class="text-gray-400">Trolley Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.trolleyCount}</span></div><div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>`;
@@ -2261,22 +2279,22 @@
         }
 
         function renderTimeline(bags) {
-            const chartDiv = document.getElementById('chart-timeline');
-            const countEl = document.getElementById('out-overlap-count');
-            const modalBody = document.getElementById('overlap-modal-body');
-            const modalTotal = document.getElementById('overlap-modal-total');
+            const chartDiv = $id('chart-timeline');
+            const countEl = $id('out-overlap-count');
+            const modalBody = $id('overlap-modal-body');
+            const modalTotal = $id('overlap-modal-total');
 
             if (bags.length === 0) {
                 try { Plotly.purge(chartDiv); } catch(e) {}
-                document.getElementById('out-max-bags').textContent = "0";
-                document.getElementById('out-max-time').textContent = "-";
+                $id('out-max-bags').textContent = "0";
+                $id('out-max-time').textContent = "-";
                 countEl.textContent = "0";
                 modalBody.innerHTML = '<tr><td colspan="2" class="py-4 text-center text-gray-400 italic">No flight data available.</td></tr>';
                 modalTotal.textContent = 'Total Bags: 0';
                 return;
             }
 
-            const interval = document.getElementById('slicer-interval').value;
+            const interval = $id('slicer-interval').value;
             const tracesMap = new Map(), globalTimeMap = new Map(), globalFlightBagMap = new Map();
             let stepMs = 1000; 
             if (interval === 'daily') stepMs = 86400000;
@@ -2311,14 +2329,14 @@
             let maxBags = 0, peakTime = null;
             globalTimeMap.forEach((count, time) => { if (count > maxBags) { maxBags = count; peakTime = time; } });
 
-            document.getElementById('out-max-bags').textContent = maxBags.toLocaleString();
+            $id('out-max-bags').textContent = maxBags.toLocaleString();
             if (peakTime) {
                 const d = new Date(peakTime);
                 const hh = String(d.getHours()).padStart(2, '0'), min = String(d.getMinutes()).padStart(2, '0');
                 const dd = String(d.getDate()).padStart(2, '0'), mm = String(d.getMonth() + 1).padStart(2, '0'), yy = String(d.getFullYear()).slice(-2);
-                document.getElementById('out-max-time').textContent = `${dd}/${mm}/${yy} ${hh}:${min}`;
+                $id('out-max-time').textContent = `${dd}/${mm}/${yy} ${hh}:${min}`;
             } else {
-                document.getElementById('out-max-bags').textContent = "0"; document.getElementById('out-max-time').textContent = "-";
+                $id('out-max-bags').textContent = "0"; $id('out-max-time').textContent = "-";
             }
 
             if (peakTime && globalFlightBagMap.has(peakTime)) {
@@ -2385,7 +2403,7 @@
         }
 
         function renderRummageLoad(bags) {
-            const chartDiv = document.getElementById('chart-bar');
+            const chartDiv = $id('chart-bar');
             if (bags.length === 0) { try { Plotly.purge(chartDiv); } catch(e) {} return; }
 
             const areaCounts = new Map();
@@ -2395,7 +2413,7 @@
             });
 
             let sortedAreas = Array.from(areaCounts.keys());
-            const sortMethod = document.getElementById('rummage-sort').value;
+            const sortMethod = $id('rummage-sort').value;
 
             sortedAreas.sort((a, b) => {
                 if (sortMethod === 'bags-desc') return areaCounts.get(b) - areaCounts.get(a);
@@ -2468,7 +2486,7 @@
             }
             DOM.reclaimTbody.innerHTML = html.join('');
 
-            const loadMoreBtn = document.getElementById('btn-load-more-rows');
+            const loadMoreBtn = $id('btn-load-more-rows');
             if (loadMoreBtn) {
                 loadMoreBtn.addEventListener('click', () => { currentTableLimit += 500; renderTable(currentFilteredBags); });
             }
@@ -2480,12 +2498,10 @@
             document.querySelectorAll('.flight-item').forEach(item => item.style.display = 'block');
             filterState = { flight: ['ALL'], reason: ['ALL'], handler: ['ALL'], reclaim: ['ALL'] };
             updateFlightUI();
-            document.getElementById('text-reason').textContent = 'All Reasons';
-            document.getElementById('text-handler').textContent = 'All GH';
-            document.getElementById('text-reclaim').textContent = 'All Areas';
+            $id('text-reason').textContent = 'All Reasons';
+            $id('text-handler').textContent = 'All GH';$id('text-reclaim').textContent = 'All Areas';
             populateFilterDropdowns(); 
-            document.getElementById('slicer-search-bag').value = '';
-            document.getElementById('slicer-interval').value = 'hourly';
+            $id('slicer-search-bag').value = '';$id('slicer-interval').value = 'hourly';
             triggerFilters();
         }
 
@@ -2573,9 +2589,7 @@
                     const dataEventTime = getCombinedEventTime(row); 
                     const bagEvents = chuteLookup.get(bagTag);
                     
-                    // Verify exact match with DIS record from chute.xlsx
                     const matchingDis = bagEvents.dis.find(d => d.timeStr === dataEventTime);
-                    
                     const targetDatePart = dataEventTime.split(' ')[0];
                     
                     if (targetDatePart && targetDatePart !== '-') {
@@ -2586,7 +2600,6 @@
 
                         let assignedChute = null;
 
-                        // Identify the value in "CHUTE" column with Status: TRA (Same date first, then previous date)
                         let matchedTra = bagEvents.tra.find(t => t.datePart === targetDatePart);
                         if (!matchedTra) {
                             matchedTra = bagEvents.tra.find(t => t.datePart === prevDatePart);
@@ -2615,7 +2628,7 @@
         }
 
         async function loadDataFiles() {
-            const overlay = document.getElementById('loading-overlay');
+            const overlay = $id('loading-overlay');
             overlay.classList.remove('hidden');
             try {
                 const [mainData, chuteData] = await Promise.all([parseXLSB("./data.xlsx"), parseXLSB("./chute.xlsx")]);
@@ -2630,9 +2643,8 @@
                 setDefaultDateFilters();
                 populateFilterDropdowns();
                 
-                document.getElementById('btn-save-as').classList.remove('hidden');
-                document.getElementById('kpi-section').classList.remove('hidden');
-                document.getElementById('charts-section').classList.remove('hidden');
+                $id('btn-save-as').classList.remove('hidden');
+                $id('kpi-section').classList.remove('hidden');$id('charts-section').classList.remove('hidden');
                 
                 applyFiltersAndRender();
             } catch (err) {
