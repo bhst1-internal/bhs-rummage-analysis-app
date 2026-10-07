@@ -240,6 +240,10 @@
                             Data Table
                         </button>
 
+                        <button id="btn-overlay-toggle" onclick="toggleOverlayMode()" title="Toggle Date Overlay" style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:4px;border:1px solid #d1d5db;font-size:.65rem;font-weight:700;color:#4b5563;cursor:pointer;background:#ffffff;transition:all 0.2s;">
+                            Overlay
+                        </button>
+
                         <div id="intervalContainer" class="flex items-center space-x-2 border-l border-gray-200 pl-3">
                             <label class="text-[0.65rem] font-semibold text-gray-500 uppercase">Interval:</label>
                             <select id="slicer-interval" class="bg-gray-50 border border-gray-300 text-gray-800 text-xs font-mono rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-blue-500 p-1.5 transition-all cursor-pointer">
@@ -512,7 +516,7 @@
     </div>
 
     <!-- Custom Table Tooltip (ELEVATED Z-INDEX) -->
-    <div id="table-custom-tooltip" class="fixed bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible transition-opacity duration-200 shadow-xl pointer-events-none z-[9999] border border-gray-700 w-max px-4 py-2.5 transform -translate-x-1/2 -translate-y-full mt-[-15px]">
+    <div id="table-custom-tooltip" class="fixed bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible transition-opacity duration-200 shadow-xl pointer-events-none z-[9999] border border-gray-700 w-max max-w-[350px] px-4 py-3 transform -translate-x-1/2 -translate-y-full mt-[-15px]">
         <div id="table-tooltip-content"></div>
         <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
     </div>
@@ -704,6 +708,7 @@
         
         let isOptimized = false; 
         let simChartType = 'bar'; 
+        let isTimelineOverlayMode = false;
         
         const areaColorPalette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#14b8a6', '#6366f1', '#eab308'];
         const areaColorMap = new Map();
@@ -806,6 +811,23 @@
                 setTimeout(() => { Plotly.Plots.resize('chart-timeline'); }, 150);
             }
             isTimelineTableExpanded = !isTimelineTableExpanded;
+        }
+
+        function toggleOverlayMode() {
+            isTimelineOverlayMode = !isTimelineOverlayMode;
+            const btn = $id('btn-overlay-toggle');
+            if (isTimelineOverlayMode) {
+                btn.style.background = '#e0e7ff';
+                btn.style.borderColor = '#6366f1';
+                btn.style.color = '#4338ca';
+            } else {
+                btn.style.background = '#ffffff';
+                btn.style.borderColor = '#d1d5db';
+                btn.style.color = '#4b5563';
+            }
+            if (currentFilteredBags && currentFilteredBags.length > 0) {
+                renderTimeline(currentFilteredBags);
+            }
         }
 
         function saveTimelineAsJPEG() {
@@ -969,7 +991,7 @@
             theadHTML.push('<th class="sticky right-0 top-0 z-30 bg-blue-50 text-[0.65rem] font-extrabold text-blue-700 uppercase tracking-wider px-3 py-3 border-b border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] text-center min-w-[70px] w-[70px]">Total</th></tr>');
             DOM.timelineThead.innerHTML = theadHTML.join('');
 
-            const tr = (str, len=45) => str.length > len ? str.substring(0, len) + '...' : str;
+            const tr = (str, len=60) => str.length > len ? str.substring(0, len) + '...' : str;
 
             const tbodyHTML = [];
             sortedAreas.forEach(area => {
@@ -992,11 +1014,11 @@
                             <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-2 uppercase tracking-wide">Rummage Details: <span class="text-blue-400">${area}</span></div>
                             <table class="w-full text-left border-collapse">
                                 <tbody>
-                                    <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Flight(s)</td><td class="pb-1 font-bold text-white">${tr(uniqueFlights)}</td></tr>
-                                    <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Event Time</td><td class="pb-1 font-bold text-white">${tr(uniqueEventTimes, 60)}</td></tr>
-                                    <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">STD</td><td class="pb-1 font-bold text-white">${tr(uniqueSTDs, 60)}</td></tr>
-                                    <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Reason(s)</td><td class="pb-1 font-bold text-white">${tr(uniqueReasons)}</td></tr>
-                                    <tr><td class="pr-3 pt-1 border-t border-gray-600 text-gray-400 whitespace-nowrap">Total Bags</td><td class="pt-1 border-t border-gray-600 font-bold text-blue-400">${count}</td></tr>
+                                    <tr><td class="pr-3 pb-1.5 text-gray-400 align-top whitespace-nowrap">Flight(s)</td><td class="pb-1.5 font-bold text-white break-words whitespace-normal">${tr(uniqueFlights, 80)}</td></tr>
+                                    <tr><td class="pr-3 pb-1.5 text-gray-400 align-top whitespace-nowrap">Event Time</td><td class="pb-1.5 font-bold text-white break-words whitespace-normal">${tr(uniqueEventTimes, 80)}</td></tr>
+                                    <tr><td class="pr-3 pb-1.5 text-gray-400 align-top whitespace-nowrap">STD</td><td class="pb-1.5 font-bold text-white break-words whitespace-normal">${tr(uniqueSTDs, 80)}</td></tr>
+                                    <tr><td class="pr-3 pb-1.5 text-gray-400 align-top whitespace-nowrap">Reason(s)</td><td class="pb-1.5 font-bold text-white break-words whitespace-normal">${tr(uniqueReasons, 80)}</td></tr>
+                                    <tr><td class="pr-3 pt-1.5 border-t border-gray-600 text-gray-400 align-top whitespace-nowrap">Total Bags</td><td class="pt-1.5 border-t border-gray-600 font-bold text-blue-400">${count}</td></tr>
                                 </tbody>
                             </table>
                         `.replace(/"/g, '&quot;');
@@ -1483,12 +1505,16 @@
             else if (cup.startsWith('MC1') || cup.startsWith('MC2')) assignment = 'SAT';
 
             tableTooltipContent.innerHTML = `
-                <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">Flight Details: <span class="text-blue-400">${flt}</span></div>
-                <div class="mb-1"><span class="text-gray-400">STD:</span> <span class="font-bold text-white ml-1">${stripSecondsFromDate(std)}</span></div>
-                <div class="mb-1"><span class="text-gray-400">Dispatch Time:</span> <span class="font-bold text-white ml-1">${disp}</span></div>
-                <div class="mb-1"><span class="text-gray-400">Flight Assignment:</span> <span class="font-bold text-white ml-1">${assignment}</span></div>
-                <div class="mb-1"><span class="text-gray-400">Assigned Chute:</span> <span class="font-bold text-white ml-1">${chute}</span></div>
-                <div><span class="text-gray-400">Ground Handler:</span> <span class="font-bold text-white ml-1">${gh}</span></div>
+                <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-2 uppercase tracking-wide">Flight Details: <span class="text-blue-400">${flt}</span></div>
+                <table class="w-full text-left border-collapse">
+                    <tbody>
+                        <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">STD</td><td class="pb-1 font-bold text-white break-words whitespace-normal">${stripSecondsFromDate(std)}</td></tr>
+                        <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Dispatch</td><td class="pb-1 font-bold text-white break-words whitespace-normal">${disp}</td></tr>
+                        <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Assignment</td><td class="pb-1 font-bold text-white break-words whitespace-normal">${assignment}</td></tr>
+                        <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Chute</td><td class="pb-1 font-bold text-white break-words whitespace-normal">${chute}</td></tr>
+                        <tr><td class="pr-3 pt-1 border-t border-gray-600 text-gray-400 whitespace-nowrap">Handler</td><td class="pt-1 border-t border-gray-600 font-bold text-white break-words whitespace-normal">${gh}</td></tr>
+                    </tbody>
+                </table>
             `;
             tableCustomTooltip.classList.remove('invisible', 'opacity-0');
             tableCustomTooltip.classList.add('opacity-100', 'visible');
@@ -2413,11 +2439,14 @@
             }
 
             const interval = $id('slicer-interval').value;
-            const tracesMap = new Map(), globalTimeMap = new Map(), globalFlightBagMap = new Map();
             let stepMs = 1000; 
             if (interval === 'daily') stepMs = 86400000;
             else if (interval === 'hourly') stepMs = 3600000;
             else if (interval === '15min') stepMs = 900000;
+
+            const globalTimeMap = new Map();
+            const globalFlightBagMap = new Map();
+            const tracesMap = new Map();
 
             bags.forEach(bag => {
                 if (!bag.timestamp) return;
@@ -2487,52 +2516,121 @@
                 }
             });
 
-            let customTicks = { tickvals: [], ticktext: [], annotations: [] };
-            if (minTime !== Infinity && maxTime !== -Infinity) customTicks = generateCustomTicks(minTime, maxTime, interval);
+            if (isTimelineOverlayMode) {
+                const overlayTracesMap = new Map();
+                
+                bags.forEach(bag => {
+                    if (!bag.timestamp) return;
+                    const dt = new Date(bag.timestamp);
+                    const dateStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getFullYear()).slice(-2)}`;
+                    
+                    let h = dt.getHours(), m = dt.getMinutes();
+                    if (interval === 'daily') {
+                        h = 0; m = 0;
+                    } else if (interval === 'hourly') {
+                        m = 0;
+                    } else if (interval === '15min') {
+                        m = m - (m % 15);
+                    }
+                    
+                    const dummyTime = new Date(1970, 0, 1, h, m, 0).getTime();
 
-            const plotlyData = [];
-            const definedOrder = ['MA', 'MB', 'MC1', 'MC2', 'MS1', 'MS2'];
-            const traceKeys = Array.from(tracesMap.keys()).sort((a, b) => {
-                let idxA = definedOrder.indexOf(a), idxB = definedOrder.indexOf(b);
-                if (idxA === -1) idxA = 999; if (idxB === -1) idxB = 999;
-                if (idxA !== idxB) return idxA - idxB;
-                return a.localeCompare(b);
-            });
-
-            traceKeys.forEach(traceKey => {
-                const timeMap = tracesMap.get(traceKey);
-                const xVals = [], yVals = [];
-                Array.from(timeMap.keys()).sort((a, b) => a - b).forEach(t => { xVals.push(new Date(t)); yVals.push(timeMap.get(t)); });
-                const traceColor = areaColorMap.get(traceKey) || '#94a3b8';
-                plotlyData.push({
-                    x: xVals, y: yVals, name: traceKey, type: 'scatter', mode: 'lines', fill: 'tozeroy', opacity: 0.5,    
-                    line: { shape: 'spline', smoothing: 0.4, color: traceColor }, hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                    if (!overlayTracesMap.has(dateStr)) overlayTracesMap.set(dateStr, new Map());
+                    const timeMap = overlayTracesMap.get(dateStr);
+                    timeMap.set(dummyTime, (timeMap.get(dummyTime) || 0) + 1);
                 });
-            });
 
-            const dateShapes = [];
-            let startOfDay = new Date(minTime);
-            startOfDay.setHours(0,0,0,0);
-            let currentMid = startOfDay.getTime() + 86400000;
-            while (currentMid < maxTime) {
-                dateShapes.push({
-                    type: 'line', x0: currentMid, x1: currentMid, y0: 0, y1: 1, yref: 'paper',
-                    line: { color: 'rgba(0,0,0,0.2)', width: 1.5, dash: 'dash' }
+                const plotlyData = [];
+                const traceKeysOverlay = Array.from(overlayTracesMap.keys()).sort();
+                
+                let cIdx = 0;
+                traceKeysOverlay.forEach(dateStr => {
+                    const timeMap = overlayTracesMap.get(dateStr);
+                    const xVals = [], yVals = [];
+                    
+                    for (let dummy = new Date(1970, 0, 1, 0, 0, 0).getTime(); dummy <= new Date(1970, 0, 1, 23, 59, 59).getTime(); dummy += stepMs) {
+                        xVals.push(new Date(dummy));
+                        yVals.push(timeMap.get(dummy) || 0);
+                    }
+
+                    const traceColor = areaColorPalette[cIdx % areaColorPalette.length];
+                    plotlyData.push({
+                        x: xVals, y: yVals, name: dateStr, type: 'scatter', mode: 'lines', fill: 'tozeroy', opacity: 0.5,    
+                        line: { shape: 'spline', smoothing: 0.4, color: traceColor }, hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                    });
+                    cIdx++;
                 });
-                currentMid += 86400000;
+
+                const dummyMinTime = new Date(1970, 0, 1, 0, 0, 0).getTime();
+                const dummyMaxTime = new Date(1970, 0, 1, 23, 59, 59).getTime();
+
+                const tickvalsOverlay = [];
+                const ticktextOverlay = [];
+                for (let i = 0; i <= 24; i += 2) {
+                    tickvalsOverlay.push(new Date(1970, 0, 1, i, 0, 0).getTime());
+                    ticktextOverlay.push(`${String(i % 24).padStart(2, '0')}:00`);
+                }
+
+                const layout = {
+                    margin: { t: 40, l: 60, r: 20, b: 50 },
+                    paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
+                    xaxis: { type: 'date', tickvals: tickvalsOverlay, ticktext: ticktextOverlay, range: [dummyMinTime, dummyMaxTime], hoverformat: '%H:%M' },
+                    yaxis: { title: { text: 'Total Bags', standoff: 30 } }, showlegend: true, hovermode: 'x unified', 
+                    hoverlabel: { bgcolor: '#1f2937', bordercolor: '#374151', namelength: -1, align: 'left', font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' } },
+                    legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 }
+                };
+                
+                Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
+
+            } else {
+
+                let customTicks = { tickvals: [], ticktext: [], annotations: [] };
+                if (minTime !== Infinity && maxTime !== -Infinity) customTicks = generateCustomTicks(minTime, maxTime, interval);
+
+                const plotlyData = [];
+                const definedOrder = ['MA', 'MB', 'MC1', 'MC2', 'MS1', 'MS2'];
+                const traceKeys = Array.from(tracesMap.keys()).sort((a, b) => {
+                    let idxA = definedOrder.indexOf(a), idxB = definedOrder.indexOf(b);
+                    if (idxA === -1) idxA = 999; if (idxB === -1) idxB = 999;
+                    if (idxA !== idxB) return idxA - idxB;
+                    return a.localeCompare(b);
+                });
+
+                traceKeys.forEach(traceKey => {
+                    const timeMap = tracesMap.get(traceKey);
+                    const xVals = [], yVals = [];
+                    Array.from(timeMap.keys()).sort((a, b) => a - b).forEach(t => { xVals.push(new Date(t)); yVals.push(timeMap.get(t)); });
+                    const traceColor = areaColorMap.get(traceKey) || '#94a3b8';
+                    plotlyData.push({
+                        x: xVals, y: yVals, name: traceKey, type: 'scatter', mode: 'lines', fill: 'tozeroy', opacity: 0.5,    
+                        line: { shape: 'spline', smoothing: 0.4, color: traceColor }, hovertemplate: `<span style="color: #d1d5db;">%{fullData.name}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                    });
+                });
+
+                const dateShapes = [];
+                let startOfDay = new Date(minTime);
+                startOfDay.setHours(0,0,0,0);
+                let currentMid = startOfDay.getTime() + 86400000;
+                while (currentMid < maxTime) {
+                    dateShapes.push({
+                        type: 'line', x0: currentMid, x1: currentMid, y0: 0, y1: 1, yref: 'paper',
+                        line: { color: 'rgba(0,0,0,0.2)', width: 1.5, dash: 'dash' }
+                    });
+                    currentMid += 86400000;
+                }
+
+                const layout = {
+                    margin: { t: 40, l: 60, r: 20, b: 50 }, 
+                    paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
+                    xaxis: { type: 'date', tickvals: customTicks.tickvals, ticktext: customTicks.ticktext, tickmode: 'array', range: [minTime, maxTime], hoverformat: '%d/%m/%y %H:%M' },
+                    yaxis: { title: { text: 'Bags Count', standoff: 30 } }, showlegend: true, hovermode: 'x unified', 
+                    hoverlabel: { bgcolor: '#1f2937', bordercolor: '#374151', namelength: -1, align: 'left', font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' } },
+                    legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 },
+                    shapes: dateShapes,
+                    annotations: customTicks.annotations
+                };
+                Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
             }
-
-            const layout = {
-                margin: { t: 40, l: 60, r: 20, b: 50 }, 
-                paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
-                xaxis: { type: 'date', tickvals: customTicks.tickvals, ticktext: customTicks.ticktext, tickmode: 'array', range: [minTime, maxTime], hoverformat: '%d/%m/%y %H:%M' },
-                yaxis: { title: { text: 'Bags Count', standoff: 30 } }, showlegend: true, hovermode: 'x unified', 
-                hoverlabel: { bgcolor: '#1f2937', bordercolor: '#374151', namelength: -1, align: 'left', font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' } },
-                legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 },
-                shapes: dateShapes,
-                annotations: customTicks.annotations
-            };
-            Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
         }
 
         function renderRummageLoad(bags) {
