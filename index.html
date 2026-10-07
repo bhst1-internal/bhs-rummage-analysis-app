@@ -516,7 +516,7 @@
     </div>
 
     <!-- Custom Table Tooltip (ELEVATED Z-INDEX) -->
-    <div id="table-custom-tooltip" class="fixed bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible transition-opacity duration-200 shadow-xl pointer-events-none z-[9999] border border-gray-700 w-max max-w-[350px] px-4 py-3 transform -translate-x-1/2 -translate-y-full mt-[-15px]">
+    <div id="table-custom-tooltip" class="fixed bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible transition-opacity duration-200 shadow-xl pointer-events-none z-[9999] border border-gray-700 w-max max-w-[90vw] md:max-w-[800px] px-4 py-3 transform -translate-x-1/2 -translate-y-full mt-[-15px]">
         <div id="table-tooltip-content"></div>
         <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
     </div>
@@ -1008,59 +1008,74 @@
                         const tooltipHtmlArr = [];
                         tooltipHtmlArr.push(`<div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-2 uppercase tracking-wide">Rummage Details: <span class="text-blue-400">${area}</span></div>`);
                         
-                        // Group bags inside this interval by flight
-                        const bagsByFlight = {};
+                        // Group bags by flight or reason to separate unknown flight components
+                        const groupedBags = {};
                         cellBags.forEach(b => {
                             const flt = b.flight && b.flight !== '-' ? b.flight : 'UNKNOWN';
-                            if (!bagsByFlight[flt]) bagsByFlight[flt] = [];
-                            bagsByFlight[flt].push(b);
+                            const reason = b.reason && b.reason !== '-' ? b.reason : 'Unknown Reason';
+                            // Build a composite key. Group by Flight if known, else group strictly by Reason.
+                            const key = flt !== 'UNKNOWN' ? `FLT_${flt}` : `RSN_${reason}`;
+                            
+                            if (!groupedBags[key]) {
+                                groupedBags[key] = { type: flt !== 'UNKNOWN' ? 'FLT' : 'RSN', flt, reason, bags: [] };
+                            }
+                            groupedBags[key].bags.push(b);
                         });
                         
-                        const flightKeys = Object.keys(bagsByFlight).sort();
-                        flightKeys.forEach(flt => {
-                            const fBags = bagsByFlight[flt];
-                            
-                            // Sort chronologically for precise time range
+                        const groupKeys = Object.keys(groupedBags).sort();
+                        
+                        // Open a multi-column flex grid for the tooltip boxes
+                        tooltipHtmlArr.push(`<div class="flex flex-wrap gap-2">`);
+                        
+                        groupKeys.forEach(key => {
+                            const group = groupedBags[key];
+                            const fBags = group.bags;
                             fBags.sort((a, b) => a.timestamp - b.timestamp);
                             
-                            // Helper to strip Date and keep only HH:mm:ss format
                             const getTimeStr = (timeStr) => {
                                 if (!timeStr || timeStr === '-') return '-';
                                 const parts = timeStr.split(' ');
                                 return parts.length > 1 ? parts.slice(1).join(' ') : timeStr;
                             };
                             
-                            let timeRange = '';
-                            if (fBags.length === 1) {
-                                timeRange = getTimeStr(fBags[0].eventTime);
-                            } else {
-                                timeRange = `${getTimeStr(fBags[0].eventTime)} to ${getTimeStr(fBags[fBags.length - 1].eventTime)}`;
-                            }
+                            let timeRange = fBags.length === 1 
+                                ? getTimeStr(fBags[0].eventTime) 
+                                : `${getTimeStr(fBags[0].eventTime)} to ${getTimeStr(fBags[fBags.length - 1].eventTime)}`;
                             
-                            const uniqueSTDs = Array.from(new Set(fBags.map(b => stripSecondsFromDate(b.std)).filter(s => s && s !== '-'))).join(', ') || '-';
-                            const uniqueReasons = Array.from(new Set(fBags.map(b => b.reason).filter(r => r && r !== '-'))).join(', ') || '-';
                             const total = fBags.length;
                             
-                            // Wrap each flight entity in its own visual container box
-                            tooltipHtmlArr.push(`<div class="bg-gray-700/50 border border-gray-600 rounded p-2 mb-2 last:mb-0">`);
+                            // Wrap each entity in its own visual container box with flex-1 base
+                            tooltipHtmlArr.push(`<div class="bg-gray-700/50 border border-gray-600 rounded p-2 flex-1 min-w-[170px] max-w-[240px]">`);
                             
-                            if (flt !== 'UNKNOWN') {
-                                tooltipHtmlArr.push(`<div class="text-blue-400 font-bold mb-1 border-b border-gray-600 pb-1">Flight: <span class="text-white">${flt}</span></div>`);
+                            if (group.type === 'FLT') {
+                                // Extract and format STD along with Hours Before STD
+                                const stdSet = new Set();
+                                fBags.forEach(b => {
+                                    const s = stripSecondsFromDate(b.std);
+                                    const h = formatDecimalToHHmm(b.hourBeforeStdNum);
+                                    if (s && s !== '-') {
+                                        stdSet.add(`${s} (${h})`);
+                                    }
+                                });
+                                const uniqueSTDs = Array.from(stdSet).join('<br>') || '-';
+                                const uniqueReasons = Array.from(new Set(fBags.map(b => b.reason).filter(r => r && r !== '-'))).join(', ') || '-';
+                                
+                                // Color swapped for "Flight:" and text
+                                tooltipHtmlArr.push(`<div class="text-gray-300 font-bold mb-1 border-b border-gray-600 pb-1">Flight: <span class="text-blue-400">${group.flt}</span></div>`);
                                 tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Time:</span> <span class="text-gray-200 font-mono">${timeRange}</span></div>`);
                                 tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">STD:</span> <span class="text-gray-200">${uniqueSTDs}</span></div>`);
                                 tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Reason:</span> <span class="text-gray-200">${uniqueReasons}</span></div>`);
-                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mt-1 pt-1 border-t border-gray-600/50"><span class="text-gray-400">Total Bags:</span> <span class="text-blue-300 font-bold text-sm">${total}</span></div>`);
                             } else {
-                                // Missing flight details case
-                                tooltipHtmlArr.push(`<div class="text-gray-300 font-bold mb-1 border-b border-gray-600 pb-1">No Flight Details</div>`);
+                                // Missing flight details logic replaced by Reason Focus
+                                tooltipHtmlArr.push(`<div class="text-gray-300 font-bold mb-1 border-b border-gray-600 pb-1">Reason: <span class="text-orange-400">${group.reason}</span></div>`);
                                 tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Time:</span> <span class="text-gray-200 font-mono">${timeRange}</span></div>`);
-                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Reason:</span> <span class="text-gray-200">${uniqueReasons}</span></div>`);
-                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mt-1 pt-1 border-t border-gray-600/50"><span class="text-gray-400">Total Bags:</span> <span class="text-blue-300 font-bold text-sm">${total}</span></div>`);
                             }
                             
+                            tooltipHtmlArr.push(`<div class="text-[0.65rem] mt-1 pt-1 border-t border-gray-600/50"><span class="text-gray-400">Total Bags:</span> <span class="text-blue-300 font-bold text-sm">${total}</span></div>`);
                             tooltipHtmlArr.push(`</div>`);
                         });
                         
+                        tooltipHtmlArr.push(`</div>`);
                         const tooltipHtml = tooltipHtmlArr.join('').replace(/"/g, '&quot;');
                         
                         tbodyHTML.push(`<td class="py-2 px-2 text-[0.7rem] font-bold text-blue-600 hover:text-blue-800 text-center border-b border-gray-100 min-w-[60px] w-[60px] cursor-help timeline-cell-hover bg-blue-50/20" data-tooltip-html="${tooltipHtml}">${count}</td>`);
@@ -2020,28 +2035,62 @@
             const chartDiv = $id('chart-histogram');
             if (bags.length === 0) { try { Plotly.purge(chartDiv); } catch(e) {} return; }
 
-            const reasonCounts = new Map();
+            const rawReasonCounts = new Map();
             bags.forEach(bag => {
                 const reason = bag.reason && bag.reason !== '-' ? bag.reason : 'UNKNOWN';
-                reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+                rawReasonCounts.set(reason, (rawReasonCounts.get(reason) || 0) + 1);
             });
 
-            let sortedReasons = Array.from(reasonCounts.keys());
+            // Isolate combinations for < 50 threshold 
+            const finalReasonCounts = new Map();
+            const othersDetails = [];
+            let othersTotal = 0;
+
+            rawReasonCounts.forEach((count, reason) => {
+                if (count < 50) {
+                    othersTotal += count;
+                    othersDetails.push({ reason, count });
+                } else {
+                    finalReasonCounts.set(reason, count);
+                }
+            });
+
+            if (othersTotal > 0) finalReasonCounts.set('Others', othersTotal);
+
+            let sortedReasons = Array.from(finalReasonCounts.keys());
             const sortMethod = $id('reason-sort').value;
 
             sortedReasons.sort((a, b) => {
-                if (sortMethod === 'bags-desc') return reasonCounts.get(b) - reasonCounts.get(a);
-                if (sortMethod === 'bags-asc') return reasonCounts.get(a) - reasonCounts.get(b);
+                // Ensure 'Others' remains neatly pinned to the end
+                if (a === 'Others') return 1;
+                if (b === 'Others') return -1;
+                
+                if (sortMethod === 'bags-desc') return finalReasonCounts.get(b) - finalReasonCounts.get(a);
+                if (sortMethod === 'bags-asc') return finalReasonCounts.get(a) - finalReasonCounts.get(b);
                 if (sortMethod === 'alpha') return a.localeCompare(b);
                 return 0;
             });
 
-            const xVals = sortedReasons, yVals = sortedReasons.map(r => reasonCounts.get(r));
-            const colors = sortedReasons.map(r => reasonColorMap.get(r) || 'rgba(99, 102, 241, 0.7)');
+            const xVals = sortedReasons;
+            const yVals = sortedReasons.map(r => finalReasonCounts.get(r));
+            const colors = sortedReasons.map(r => r === 'Others' ? '#94a3b8' : (reasonColorMap.get(r) || 'rgba(99, 102, 241, 0.7)'));
+            
+            // Reconfigure internal Tooltip strings via Hovertext 
+            const hoverTexts = sortedReasons.map(r => {
+                if (r === 'Others') {
+                    othersDetails.sort((a, b) => b.count - a.count);
+                    const detailsStr = othersDetails.map(d => `${d.reason}: ${d.count}`).join('<br>');
+                    return `<span style="color: #d1d5db;">Others</span>: <b style="color: #ffffff;">${finalReasonCounts.get(r)}</b><br><br><span style="font-size:0.75rem;color:#9ca3af;border-bottom:1px solid #4b5563;display:block;margin-bottom:2px;">Composition:</span><span style="font-size:0.7rem;color:#9ca3af;">${detailsStr}</span>`;
+                } else {
+                    return `<span style="color: #d1d5db;">${r}</span>: <b style="color: #ffffff;">${finalReasonCounts.get(r)}</b>`;
+                }
+            });
 
             const plotlyData = [{
                 x: xVals, y: yVals, type: 'bar', marker: { color: colors, opacity: 0.5 },
-                text: yVals, textposition: 'outside', textfont: { color: '#4b5563', weight: 'bold' }, cliponaxis: false, hovertemplate: `<span style="color: #d1d5db;">%{x}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+                text: yVals, textposition: 'outside', textfont: { color: '#4b5563', weight: 'bold' }, cliponaxis: false, 
+                hovertext: hoverTexts,
+                hovertemplate: '%{hovertext}<extra></extra>'
             }];
 
             const layout = {
@@ -2612,18 +2661,24 @@
 
                 const dummyMinTime = new Date(1970, 0, 1, 0, 0, 0).getTime();
                 const dummyMaxTime = new Date(1970, 0, 1, 23, 59, 59).getTime();
+                
+                // Add bounding offsets to ensure the line doesn't start hard cut on 0 
+                const paddedMinTime = dummyMinTime - stepMs;
+                const paddedMaxTime = dummyMaxTime + stepMs;
 
                 const tickvalsOverlay = [];
                 const ticktextOverlay = [];
-                for (let i = 0; i <= 24; i += 2) {
+                // Generate tick marks spanning slightly wider to accommodate the padded viewing range
+                for (let i = -2; i <= 26; i += 2) {
                     tickvalsOverlay.push(new Date(1970, 0, 1, i, 0, 0).getTime());
-                    ticktextOverlay.push(`${String(i % 24).padStart(2, '0')}:00`);
+                    let hourStr = String((i + 24) % 24).padStart(2, '0');
+                    ticktextOverlay.push(`${hourStr}:00`);
                 }
 
                 const layout = {
                     margin: { t: 40, l: 60, r: 20, b: 50 },
                     paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
-                    xaxis: { type: 'date', tickvals: tickvalsOverlay, ticktext: ticktextOverlay, range: [dummyMinTime, dummyMaxTime], hoverformat: '%H:%M' },
+                    xaxis: { type: 'date', tickvals: tickvalsOverlay, ticktext: ticktextOverlay, range: [paddedMinTime, paddedMaxTime], hoverformat: '%H:%M' },
                     yaxis: { title: { text: 'Total Bags', standoff: 30 } }, showlegend: true, hovermode: 'x unified', 
                     hoverlabel: { bgcolor: '#1f2937', bordercolor: '#374151', namelength: -1, align: 'left', font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' } },
                     legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 }
