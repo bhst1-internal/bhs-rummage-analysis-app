@@ -927,14 +927,17 @@
                     binnedTime = bag.timestamp;
                 }
 
-                globalTimeMap.set(binnedTime, (globalTimeMap.get(binnedTime) || 0) + 1);
+                if (!globalTimeMap.has(binnedTime)) globalTimeMap.set(binnedTime, []);
+                globalTimeMap.get(binnedTime).push(bag);
+
                 uniqueDates.add(`${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`);
 
                 const traceKey = bag.rummageArea && bag.rummageArea !== '-' ? bag.rummageArea : 'UNKNOWN';
                 if (!tracesMap.has(traceKey)) tracesMap.set(traceKey, new Map());
                 
                 const timeMap = tracesMap.get(traceKey);
-                timeMap.set(binnedTime, (timeMap.get(binnedTime) || 0) + 1);
+                if (!timeMap.has(binnedTime)) timeMap.set(binnedTime, []);
+                timeMap.get(binnedTime).push(bag);
             });
 
             const isSingleDate = uniqueDates.size <= 1;
@@ -966,6 +969,8 @@
             theadHTML.push('<th class="sticky right-0 top-0 z-30 bg-blue-50 text-[0.65rem] font-extrabold text-blue-700 uppercase tracking-wider px-3 py-3 border-b border-l border-gray-200 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] text-center min-w-[70px] w-[70px]">Total</th></tr>');
             DOM.timelineThead.innerHTML = theadHTML.join('');
 
+            const tr = (str, len=45) => str.length > len ? str.substring(0, len) + '...' : str;
+
             const tbodyHTML = [];
             sortedAreas.forEach(area => {
                 tbodyHTML.push(`<tr class="hover:bg-gray-50 transition-colors">`);
@@ -973,9 +978,29 @@
                 
                 let rowTotal = 0;
                 sortedTimes.forEach(t => {
-                    const count = tracesMap.get(area).get(t) || 0;
+                    const cellBags = tracesMap.get(area).get(t) || [];
+                    const count = cellBags.length;
                     rowTotal += count;
-                    tbodyHTML.push(`<td class="py-2 px-2 text-[0.7rem] font-semibold text-gray-600 text-center border-b border-gray-100 min-w-[60px] w-[60px]">${count > 0 ? count : '-'}</td>`);
+                    
+                    if (count > 0) {
+                        let uniqueFlights = Array.from(new Set(cellBags.map(b => b.flight).filter(f => f && f !== '-'))).join(', ') || '-';
+                        let uniqueReasons = Array.from(new Set(cellBags.map(b => b.reason).filter(r => r && r !== '-'))).join(', ') || '-';
+                        let uniqueSTDs = Array.from(new Set(cellBags.map(b => stripSecondsFromDate(b.std)).filter(s => s && s !== '-'))).join(', ') || '-';
+                        let uniqueEventTimes = Array.from(new Set(cellBags.map(b => b.eventTime).filter(e => e && e !== '-'))).join(', ') || '-';
+                        
+                        const tooltipHtml = `
+                            <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">Rummage Details: <span class="text-blue-400">${area}</span></div>
+                            <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-white ml-1">${count}</span></div>
+                            <div class="mb-1"><span class="text-gray-400">Flight(s):</span> <span class="font-bold text-white ml-1">${tr(uniqueFlights)}</span></div>
+                            <div class="mb-1"><span class="text-gray-400">Event Time:</span> <span class="font-bold text-white ml-1">${tr(uniqueEventTimes, 60)}</span></div>
+                            <div class="mb-1"><span class="text-gray-400">STD:</span> <span class="font-bold text-white ml-1">${tr(uniqueSTDs, 60)}</span></div>
+                            <div><span class="text-gray-400">Reason(s):</span> <span class="font-bold text-white ml-1">${tr(uniqueReasons)}</span></div>
+                        `.replace(/"/g, '&quot;');
+                        
+                        tbodyHTML.push(`<td class="py-2 px-2 text-[0.7rem] font-bold text-blue-600 hover:text-blue-800 text-center border-b border-gray-100 min-w-[60px] w-[60px] cursor-help timeline-cell-hover bg-blue-50/20" data-tooltip-html="${tooltipHtml}">${count}</td>`);
+                    } else {
+                        tbodyHTML.push(`<td class="py-2 px-2 text-[0.7rem] font-semibold text-gray-400 text-center border-b border-gray-100 min-w-[60px] w-[60px]">-</td>`);
+                    }
                 });
                 
                 tbodyHTML.push(`<td class="sticky right-0 z-10 bg-blue-50/50 py-2 px-3 text-[0.75rem] font-extrabold text-blue-600 text-center border-b border-l border-gray-100 shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.05)] min-w-[70px] w-[70px]">${rowTotal}</td></tr>`);
@@ -986,7 +1011,7 @@
             
             let grandTotal = 0;
             sortedTimes.forEach(t => {
-                const count = globalTimeMap.get(t) || 0;
+                const count = (globalTimeMap.get(t) || []).length;
                 grandTotal += count;
                 tbodyHTML.push(`<td class="py-3 px-2 text-[0.75rem] font-extrabold text-gray-800 text-center border-t border-gray-200 bg-gray-50 min-w-[60px] w-[60px]">${count > 0 ? count : '-'}</td>`);
             });
@@ -1474,6 +1499,28 @@
 
         DOM.reclaimTbody.addEventListener('mouseout', (e) => {
             if (!e.target.closest('.flight-cell')) return;
+            tableCustomTooltip.classList.add('invisible', 'opacity-0');
+            tableCustomTooltip.classList.remove('opacity-100', 'visible');
+        });
+
+        // Data Matrix (Timeline) Tooltip events
+        DOM.timelineTbody.addEventListener('mouseover', (e) => {
+            const cell = e.target.closest('.timeline-cell-hover');
+            if (!cell) return;
+            tableTooltipContent.innerHTML = cell.getAttribute('data-tooltip-html');
+            tableCustomTooltip.classList.remove('invisible', 'opacity-0');
+            tableCustomTooltip.classList.add('opacity-100', 'visible');
+        });
+
+        DOM.timelineTbody.addEventListener('mousemove', (e) => {
+            if (!tableCustomTooltip.classList.contains('invisible')) {
+                tableCustomTooltip.style.left = e.clientX + 'px';
+                tableCustomTooltip.style.top = e.clientY + 'px';
+            }
+        });
+
+        DOM.timelineTbody.addEventListener('mouseout', (e) => {
+            if (!e.target.closest('.timeline-cell-hover')) return;
             tableCustomTooltip.classList.add('invisible', 'opacity-0');
             tableCustomTooltip.classList.remove('opacity-100', 'visible');
         });
@@ -2257,7 +2304,7 @@
             if (globalTotalMins > 60) displayTime = `${Math.floor(globalTotalMins / 60)}h ${Math.round(globalTotalMins % 60)}m`;
             $id('sim-out-duration').textContent = displayTime;
             
-            const maxWlEl = $id('out-max-workload'), maxWlDateTimeEl = $id('out-max-workload-datetime'), maxWlTooltip = $id('out-max-workload-tooltip');
+            const maxWlEl = $id('out-max-workload'), maxWlDateTimeEl = $id('out-max-workload-datetime'), maxWlTooltip =$id('out-max-workload-tooltip');
             if (simEntries.length > 0 && maxWorkloadDetails) {
                 maxWlEl.innerHTML = `${Math.round(globalMaxWorkload)} <span class="text-sm font-semibold text-teal-500 ml-0.5">minutes</span>`;
                 maxWlDateTimeEl.textContent = `${maxWorkloadDetails.date} ${maxWorkloadDetails.time}`;
@@ -2267,7 +2314,7 @@
                 maxWlEl.textContent = '-'; maxWlDateTimeEl.textContent = '-'; maxWlTooltip.innerHTML = ''; maxWlTooltip.classList.add('hidden');
             }
 
-            const maxTransEl = $id('out-max-transports'), maxTransDateTimeEl = $id('out-max-transports-datetime'), maxTransTooltip = $id('out-max-transports-tooltip');
+            const maxTransEl = $id('out-max-transports'), maxTransDateTimeEl = $id('out-max-transports-datetime'), maxTransTooltip =$id('out-max-transports-tooltip');
             if (simEntries.length > 0 && maxTransDetails && globalMaxTransports > 0) {
                 maxTransEl.textContent = globalMaxTransports; maxTransDateTimeEl.textContent = `${maxTransDetails.date} ${maxTransDetails.time}`;
                 maxTransTooltip.innerHTML = `<div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">FLEET DETAILS</div><div class="mb-1"><span class="text-gray-400">Date:</span> <span class="font-bold text-white ml-1">${maxTransDetails.date}</span></div><div class="mb-1"><span class="text-gray-400">Time:</span> <span class="font-bold text-white ml-1">${maxTransDetails.time}</span></div><div class="mb-1"><span class="text-gray-400">Lorry Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.lorryCount}</span></div><div><span class="text-gray-400">Trolley Count:</span> <span class="font-bold text-white ml-1">${maxTransDetails.trolleyCount}</span></div><div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>`;
@@ -2278,7 +2325,7 @@
         }
 
         function generateCustomTicks(minTime, maxTime, interval) {
-            const tickvals = [], ticktext = [];
+            const tickvals = [], ticktext = [], annotations = [];
             const diff = maxTime - minTime;
             let tickStepMs;
             let isThirteenDaysOrMore = diff >= 86400000 * 12.5;
@@ -2308,13 +2355,40 @@
                 const dd = String(d.getDate()).padStart(2, '0'), mmm = monthNames[d.getMonth()], yy = String(d.getFullYear()).slice(-2);
                 
                 let baseDateStr = (isEightDaysOrMore && interval !== 'daily') ? `${dd}-${mmm}` : `${dd} ${mmm} ${yy}`;
-                let finalDateStr = baseDateStr; // Unbolded Date Output
 
-                if (tickStepMs >= 86400000) { ticktext.push(finalDateStr); } 
-                else { ticktext.push((hh === '00' && mm === '00') ? `00:00<br>${finalDateStr}` : `${hh}:${mm}`); }
+                if (interval === 'daily') { ticktext.push(baseDateStr); } 
+                else { ticktext.push(`${hh}:${mm}`); }
+                
                 current += tickStepMs; safety++;
             }
-            return { tickvals, ticktext };
+
+            if (interval !== 'daily') {
+                let currentDayStart = new Date(minTime);
+                currentDayStart.setHours(0,0,0,0);
+                
+                while (currentDayStart.getTime() <= maxTime) {
+                    let midOfDay = currentDayStart.getTime() + 43200000; 
+                    const d = new Date(currentDayStart);
+                    const dd = String(d.getDate()).padStart(2, '0'), mmm = monthNames[d.getMonth()], yy = String(d.getFullYear()).slice(-2);
+                    let baseDateStr = (isEightDaysOrMore) ? `${dd}-${mmm}` : `${dd} ${mmm} ${yy}`;
+                    
+                    annotations.push({
+                        x: midOfDay,
+                        y: -0.16, 
+                        xref: 'x',
+                        yref: 'paper',
+                        text: baseDateStr,
+                        showarrow: false,
+                        xanchor: 'center',
+                        yanchor: 'top',
+                        font: { size: 12, color: '#6b7280', family: 'monospace' }
+                    });
+                    
+                    currentDayStart.setDate(currentDayStart.getDate() + 1);
+                }
+            }
+
+            return { tickvals, ticktext, annotations };
         }
 
         function renderTimeline(bags) {
@@ -2408,7 +2482,7 @@
                 }
             });
 
-            let customTicks = { tickvals: [], ticktext: [] };
+            let customTicks = { tickvals: [], ticktext: [], annotations: [] };
             if (minTime !== Infinity && maxTime !== -Infinity) customTicks = generateCustomTicks(minTime, maxTime, interval);
 
             const plotlyData = [];
@@ -2444,12 +2518,14 @@
             }
 
             const layout = {
-                margin: { t: 40, l: 60, r: 20, b: 40 }, paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
+                margin: { t: 40, l: 60, r: 20, b: 60 },
+                paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
                 xaxis: { type: 'date', tickvals: customTicks.tickvals, ticktext: customTicks.ticktext, tickmode: 'array', range: [minTime, maxTime], hoverformat: '%d/%m/%y %H:%M' },
                 yaxis: { title: { text: 'Bags Count', standoff: 30 } }, showlegend: true, hovermode: 'x unified', 
                 hoverlabel: { bgcolor: '#1f2937', bordercolor: '#374151', namelength: -1, align: 'left', font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' } },
                 legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 },
-                shapes: dateShapes 
+                shapes: dateShapes,
+                annotations: customTicks.annotations
             };
             Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
         }
