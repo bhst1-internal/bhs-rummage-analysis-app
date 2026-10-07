@@ -1707,45 +1707,63 @@
         }
 
         function processBagEntities(rows) {
-            bagDataset.clear();
-            rows.forEach((rawRow, index) => {
-                const row = normalizeRowKeys(rawRow);
-                
-                const rawBagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'LICENSEPLATE']);
-                const bagTagId = (rawBagTag !== '-' && rawBagTag !== '') ? String(rawBagTag).trim() : `UNKNOWN_${index + 1}`;
+			bagDataset.clear();
+			rows.forEach((rawRow, index) => {
+				const row = normalizeRowKeys(rawRow);
+				
+				const rawBagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'LICENSEPLATE']);
+				let bagTagId = (rawBagTag !== '-' && rawBagTag !== '') ? String(rawBagTag).trim() : `UNKNOWN_${index + 1}`;
 
-                const rawDate = getRawValue(row, ['DATE', 'EVENTDATE']);
-                const rawTime = getRawValue(row, ['TIME', 'EVENTTIME']);
-                const rawStd  = getRawValue(row, ['STD', 'STDTIME', 'SCHEDULEDTIME']);
+				const rawDate = getRawValue(row, ['DATE', 'EVENTDATE']);
+				const rawTime = getRawValue(row, ['TIME', 'EVENTTIME']);
+				const rawStd  = getRawValue(row, ['STD', 'STDTIME', 'SCHEDULEDTIME']);
 
-                let combinedEventTime = '-';
-                if (rawDate !== '-' && rawTime !== '-') {
-                    if (/^\d+(\.\d+)?$/.test(String(rawDate).trim()) && /^\d+(\.\d+)?$/.test(String(rawTime).trim())) {
-                        combinedEventTime = formatExcelDate(parseFloat(rawDate) + parseFloat(rawTime));
-                    } else { combinedEventTime = formatExcelDate(`${rawDate} ${rawTime}`); }
-                } else if (rawDate !== '-') { combinedEventTime = formatExcelDate(rawDate); }
+				let combinedEventTime = '-';
+				if (rawDate !== '-' && rawTime !== '-') {
+					if (/^\d+(\.\d+)?$/.test(String(rawDate).trim()) && /^\d+(\.\d+)?$/.test(String(rawTime).trim())) {
+						combinedEventTime = formatExcelDate(parseFloat(rawDate) + parseFloat(rawTime));
+					} else { combinedEventTime = formatExcelDate(`${rawDate} ${rawTime}`); }
+				} else if (rawDate !== '-') { combinedEventTime = formatExcelDate(rawDate); }
 
-                const parsedDt = parseCustomDateToJS(combinedEventTime);
-                const rawHourStd = String(getRawValue(row, ['HOURBEFORESTD', 'HOURSBEFORESTD'])).trim();
+				const parsedDt = parseCustomDateToJS(combinedEventTime);
+				const rawHourStd = String(getRawValue(row, ['HOURBEFORESTD', 'HOURSBEFORESTD'])).trim();
 
-                const bagEntity = {
-                    bagTagId:      bagTagId,
-                    eventTime:     combinedEventTime,
-                    timestamp:     parsedDt ? parsedDt.getTime() : 0, 
-                    dateOnlyISO:   extractISODate(combinedEventTime), 
-                    std:           formatExcelDate(rawStd),
-                    flight:        String(getRawValue(row, ['FLIGHT', 'FLIGHTNO'])).trim(),
-                    rummage:       String(getRawValue(row, ['RUMMAGE', 'RUMMAGESTATUS'])).trim(),
-                    rummageArea:   String(getRawValue(row, ['RUMMAGEAREA', 'RECLAIMAREA', 'AREA'])).trim(),
-                    reason:        String(getRawValue(row, ['REASON', 'RUMMAGEREASON'])).trim(),
-                    chute:         String(getRawValue(row, ['CHUTE', 'CHUTEID', 'ASSIGNEDCHUTE'])).trim(),
-                    groundHandler: String(getRawValue(row, ['GROUNDHANDLER', 'HANDLER'])).trim(),
-                    hourBeforeStd: rawHourStd,
-                    hourBeforeStdNum: parseHourString(rawHourStd) 
-                };
-                bagDataset.set(bagTagId, bagEntity);
-            });
-        }
+				// 1. Identify if the BAGTAGID is purely numeric
+				const isNumeric = /^\d+$/.test(bagTagId);
+				
+				// 2. Generate a highly unique Map key to prevent unintended overwrites
+				let uniqueMapKey;
+				
+				if (bagTagId.startsWith('UNKNOWN_')) {
+					uniqueMapKey = bagTagId;
+				} else if (!isNumeric && combinedEventTime !== '-') {
+					// Condition: Text-based BAGTAGID (texts not numbers) with an EVENTTIME is 1 unique incomplete bag
+					uniqueMapKey = `${bagTagId}_${index + 1}`;
+				} else {
+					// Condition: Same EVENTTIME but different BAGTAGID (or reused tags) are distinct bags
+					uniqueMapKey = `${bagTagId}_${combinedEventTime}_${index + 1}`;
+				}
+
+				const bagEntity = {
+					bagTagId:      bagTagId, // Retain the original tag exclusively for table display
+					eventTime:     combinedEventTime,
+					timestamp:     parsedDt ? parsedDt.getTime() : 0, 
+					dateOnlyISO:   extractISODate(combinedEventTime), 
+					std:           formatExcelDate(rawStd),
+					flight:        String(getRawValue(row, ['FLIGHT', 'FLIGHTNO'])).trim(),
+					rummage:       String(getRawValue(row, ['RUMMAGE', 'RUMMAGESTATUS'])).trim(),
+					rummageArea:   String(getRawValue(row, ['RUMMAGEAREA', 'RECLAIMAREA', 'AREA'])).trim(),
+					reason:        String(getRawValue(row, ['REASON', 'RUMMAGEREASON'])).trim(),
+					chute:         String(getRawValue(row, ['CHUTE', 'CHUTEID', 'ASSIGNEDCHUTE'])).trim(),
+					groundHandler: String(getRawValue(row, ['GROUNDHANDLER', 'HANDLER'])).trim(),
+					hourBeforeStd: rawHourStd,
+					hourBeforeStdNum: parseHourString(rawHourStd) 
+				};
+				
+				// Store using the newly refined unique key instead of just bagTagId
+				bagDataset.set(uniqueMapKey, bagEntity);
+			});
+		}
 
         function setDefaultDateFilters() {
             let maxDate = '';
