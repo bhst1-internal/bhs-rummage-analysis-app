@@ -1005,23 +1005,63 @@
                     rowTotal += count;
                     
                     if (count > 0) {
-                        let uniqueFlights = Array.from(new Set(cellBags.map(b => b.flight).filter(f => f && f !== '-'))).join(', ') || '-';
-                        let uniqueReasons = Array.from(new Set(cellBags.map(b => b.reason).filter(r => r && r !== '-'))).join(', ') || '-';
-                        let uniqueSTDs = Array.from(new Set(cellBags.map(b => stripSecondsFromDate(b.std)).filter(s => s && s !== '-'))).join(', ') || '-';
-                        let uniqueEventTimes = Array.from(new Set(cellBags.map(b => b.eventTime).filter(e => e && e !== '-'))).join(', ') || '-';
+                        const tooltipHtmlArr = [];
+                        tooltipHtmlArr.push(`<div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-2 uppercase tracking-wide">Rummage Details: <span class="text-blue-400">${area}</span></div>`);
                         
-                        const tooltipHtml = `
-                            <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-2 uppercase tracking-wide">Rummage Details: <span class="text-blue-400">${area}</span></div>
-                            <table class="w-full text-left border-collapse">
-                                <tbody>
-                                    <tr><td class="pr-3 pb-1.5 text-gray-400 align-top whitespace-nowrap">Flight(s)</td><td class="pb-1.5 font-bold text-white break-words whitespace-normal">${tr(uniqueFlights, 80)}</td></tr>
-                                    <tr><td class="pr-3 pb-1.5 text-gray-400 align-top whitespace-nowrap">Event Time</td><td class="pb-1.5 font-bold text-white break-words whitespace-normal">${tr(uniqueEventTimes, 80)}</td></tr>
-                                    <tr><td class="pr-3 pb-1.5 text-gray-400 align-top whitespace-nowrap">STD</td><td class="pb-1.5 font-bold text-white break-words whitespace-normal">${tr(uniqueSTDs, 80)}</td></tr>
-                                    <tr><td class="pr-3 pb-1.5 text-gray-400 align-top whitespace-nowrap">Reason(s)</td><td class="pb-1.5 font-bold text-white break-words whitespace-normal">${tr(uniqueReasons, 80)}</td></tr>
-                                    <tr><td class="pr-3 pt-1.5 border-t border-gray-600 text-gray-400 align-top whitespace-nowrap">Total Bags</td><td class="pt-1.5 border-t border-gray-600 font-bold text-blue-400">${count}</td></tr>
-                                </tbody>
-                            </table>
-                        `.replace(/"/g, '&quot;');
+                        // Group bags inside this interval by flight
+                        const bagsByFlight = {};
+                        cellBags.forEach(b => {
+                            const flt = b.flight && b.flight !== '-' ? b.flight : 'UNKNOWN';
+                            if (!bagsByFlight[flt]) bagsByFlight[flt] = [];
+                            bagsByFlight[flt].push(b);
+                        });
+                        
+                        const flightKeys = Object.keys(bagsByFlight).sort();
+                        flightKeys.forEach(flt => {
+                            const fBags = bagsByFlight[flt];
+                            
+                            // Sort chronologically for precise time range
+                            fBags.sort((a, b) => a.timestamp - b.timestamp);
+                            
+                            // Helper to strip Date and keep only HH:mm:ss format
+                            const getTimeStr = (timeStr) => {
+                                if (!timeStr || timeStr === '-') return '-';
+                                const parts = timeStr.split(' ');
+                                return parts.length > 1 ? parts.slice(1).join(' ') : timeStr;
+                            };
+                            
+                            let timeRange = '';
+                            if (fBags.length === 1) {
+                                timeRange = getTimeStr(fBags[0].eventTime);
+                            } else {
+                                timeRange = `${getTimeStr(fBags[0].eventTime)} to ${getTimeStr(fBags[fBags.length - 1].eventTime)}`;
+                            }
+                            
+                            const uniqueSTDs = Array.from(new Set(fBags.map(b => stripSecondsFromDate(b.std)).filter(s => s && s !== '-'))).join(', ') || '-';
+                            const uniqueReasons = Array.from(new Set(fBags.map(b => b.reason).filter(r => r && r !== '-'))).join(', ') || '-';
+                            const total = fBags.length;
+                            
+                            // Wrap each flight entity in its own visual container box
+                            tooltipHtmlArr.push(`<div class="bg-gray-700/50 border border-gray-600 rounded p-2 mb-2 last:mb-0">`);
+                            
+                            if (flt !== 'UNKNOWN') {
+                                tooltipHtmlArr.push(`<div class="text-blue-400 font-bold mb-1 border-b border-gray-600 pb-1">Flight: <span class="text-white">${flt}</span></div>`);
+                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Time:</span> <span class="text-gray-200 font-mono">${timeRange}</span></div>`);
+                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">STD:</span> <span class="text-gray-200">${uniqueSTDs}</span></div>`);
+                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Reason:</span> <span class="text-gray-200">${uniqueReasons}</span></div>`);
+                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mt-1 pt-1 border-t border-gray-600/50"><span class="text-gray-400">Total Bags:</span> <span class="text-blue-300 font-bold text-sm">${total}</span></div>`);
+                            } else {
+                                // Missing flight details case
+                                tooltipHtmlArr.push(`<div class="text-gray-300 font-bold mb-1 border-b border-gray-600 pb-1">No Flight Details</div>`);
+                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Time:</span> <span class="text-gray-200 font-mono">${timeRange}</span></div>`);
+                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Reason:</span> <span class="text-gray-200">${uniqueReasons}</span></div>`);
+                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mt-1 pt-1 border-t border-gray-600/50"><span class="text-gray-400">Total Bags:</span> <span class="text-blue-300 font-bold text-sm">${total}</span></div>`);
+                            }
+                            
+                            tooltipHtmlArr.push(`</div>`);
+                        });
+                        
+                        const tooltipHtml = tooltipHtmlArr.join('').replace(/"/g, '&quot;');
                         
                         tbodyHTML.push(`<td class="py-2 px-2 text-[0.7rem] font-bold text-blue-600 hover:text-blue-800 text-center border-b border-gray-100 min-w-[60px] w-[60px] cursor-help timeline-cell-hover bg-blue-50/20" data-tooltip-html="${tooltipHtml}">${count}</td>`);
                     } else {
@@ -2546,12 +2586,21 @@
                 let cIdx = 0;
                 traceKeysOverlay.forEach(dateStr => {
                     const timeMap = overlayTracesMap.get(dateStr);
-                    const xVals = [], yVals = [];
+                    const times = Array.from(timeMap.keys());
                     
-                    for (let dummy = new Date(1970, 0, 1, 0, 0, 0).getTime(); dummy <= new Date(1970, 0, 1, 23, 59, 59).getTime(); dummy += stepMs) {
-                        xVals.push(new Date(dummy));
-                        yVals.push(timeMap.get(dummy) || 0);
+                    // Apply zero anchors for first and last plotted records so lines don't float
+                    if (times.length > 0) {
+                        const traceMin = Math.min(...times);
+                        const traceMax = Math.max(...times);
+                        if (!timeMap.has(traceMin - stepMs)) timeMap.set(traceMin - stepMs, 0);
+                        if (!timeMap.has(traceMax + stepMs)) timeMap.set(traceMax + stepMs, 0);
                     }
+                    
+                    const xVals = [], yVals = [];
+                    Array.from(timeMap.keys()).sort((a, b) => a - b).forEach(t => { 
+                        xVals.push(new Date(t)); 
+                        yVals.push(timeMap.get(t)); 
+                    });
 
                     const traceColor = areaColorPalette[cIdx % areaColorPalette.length];
                     plotlyData.push({
