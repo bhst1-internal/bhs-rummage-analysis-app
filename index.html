@@ -181,7 +181,6 @@
                 </div>
             </div>
 
-            <!-- MODIFIED AVG BAGS KPI CARD -->
             <div class="bg-orange-600 text-white p-3 rounded-lg shadow text-center relative group cursor-help transition hover:bg-orange-700 flex flex-col justify-center">
                 <h4 class="text-[0.65rem] uppercase text-white opacity-80 mb-1" id="kpi-avg-bags-label">Total Bags (based on interval selection)</h4>
                 <div class="text-base font-bold mt-1 tracking-wide flex justify-center items-center">
@@ -434,15 +433,23 @@
                     <div id="chart-bar" class="flex-1 w-full min-h-0 relative"></div>
                 </div>
 
-                <!-- 5. OVERALL RUMMAGE DURATION DISTRIBUTION -->
+                <!-- 5. RUMMAGE LOAD BY REASON -->
                 <div class="bg-white p-4 rounded-lg shadow flex flex-col relative h-[390px]">
                     <div class="flex justify-between items-center border-b pb-2 mb-2 shrink-0">
-                        <h3 class="font-bold text-gray-700">5. Overall Rummage Duration Distribution</h3>
-                        <button class="export-chart-btn flex items-center gap-1 text-[0.65rem] font-bold text-gray-500 hover:text-blue-600 transition bg-gray-100 px-2 py-1 rounded border border-gray-200" data-target="chart-histogram" title="Save Chart as JPEG">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-                            JPEG
-                        </button>
+                        <h3 class="font-bold text-gray-700">5. Rummage Load by Reason</h3>
+                        <div class="flex items-center gap-2">
+                            <button class="export-chart-btn flex items-center gap-1 text-[0.65rem] font-bold text-gray-500 hover:text-blue-600 transition bg-gray-100 px-2 py-1 rounded border border-gray-200" data-target="chart-histogram" title="Save Chart as JPEG">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                JPEG
+                            </button>
+                            <select id="reason-sort" class="border p-1 rounded text-xs bg-gray-50 focus:ring-blue-500 outline-none font-medium">
+                                <option value="bags-desc">Total Bags &darr;</option>
+                                <option value="bags-asc">Total Bags &uarr;</option>
+                                <option value="alpha">Alphabetical</option>
+                            </select>
+                        </div>
                     </div>
+                    <!-- Keeping ID 'chart-histogram' to preserve existing jpeg export and styling linkages -->
                     <div id="chart-histogram" class="flex-1 w-full min-h-0 relative"></div>
                 </div>
             </div>
@@ -700,6 +707,7 @@
         
         const areaColorPalette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#f97316', '#14b8a6', '#6366f1', '#eab308'];
         const areaColorMap = new Map();
+        const reasonColorMap = new Map();
         const nonAlphaNumRegex = /[^A-Z0-9]/gi;
         
         // Debounce Utility for Inputs
@@ -1472,7 +1480,7 @@
 
         $id('upload').addEventListener('change', handleFileUpload);
         
-        const filterIds = ['filter-start-date', 'filter-end-date', 'slicer-interval', 'rummage-sort'];
+        const filterIds = ['filter-start-date', 'filter-end-date', 'slicer-interval', 'rummage-sort', 'reason-sort'];
         function triggerFilters() { setTimeout(() => { applyFiltersAndRender(); }, 10); }
         filterIds.forEach(id => $id(id).addEventListener('change', triggerFilters));
         
@@ -1707,63 +1715,57 @@
         }
 
         function processBagEntities(rows) {
-			bagDataset.clear();
-			rows.forEach((rawRow, index) => {
-				const row = normalizeRowKeys(rawRow);
-				
-				const rawBagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'LICENSEPLATE']);
-				let bagTagId = (rawBagTag !== '-' && rawBagTag !== '') ? String(rawBagTag).trim() : `UNKNOWN_${index + 1}`;
+            bagDataset.clear();
+            rows.forEach((rawRow, index) => {
+                const row = normalizeRowKeys(rawRow);
+                
+                const rawBagTag = getRawValue(row, ['BAGTAGID', 'BAGTAG', 'LICENSEPLATE']);
+                let bagTagId = (rawBagTag !== '-' && rawBagTag !== '') ? String(rawBagTag).trim() : `UNKNOWN_${index + 1}`;
 
-				const rawDate = getRawValue(row, ['DATE', 'EVENTDATE']);
-				const rawTime = getRawValue(row, ['TIME', 'EVENTTIME']);
-				const rawStd  = getRawValue(row, ['STD', 'STDTIME', 'SCHEDULEDTIME']);
+                const rawDate = getRawValue(row, ['DATE', 'EVENTDATE']);
+                const rawTime = getRawValue(row, ['TIME', 'EVENTTIME']);
+                const rawStd  = getRawValue(row, ['STD', 'STDTIME', 'SCHEDULEDTIME']);
 
-				let combinedEventTime = '-';
-				if (rawDate !== '-' && rawTime !== '-') {
-					if (/^\d+(\.\d+)?$/.test(String(rawDate).trim()) && /^\d+(\.\d+)?$/.test(String(rawTime).trim())) {
-						combinedEventTime = formatExcelDate(parseFloat(rawDate) + parseFloat(rawTime));
-					} else { combinedEventTime = formatExcelDate(`${rawDate} ${rawTime}`); }
-				} else if (rawDate !== '-') { combinedEventTime = formatExcelDate(rawDate); }
+                let combinedEventTime = '-';
+                if (rawDate !== '-' && rawTime !== '-') {
+                    if (/^\d+(\.\d+)?$/.test(String(rawDate).trim()) && /^\d+(\.\d+)?$/.test(String(rawTime).trim())) {
+                        combinedEventTime = formatExcelDate(parseFloat(rawDate) + parseFloat(rawTime));
+                    } else { combinedEventTime = formatExcelDate(`${rawDate} ${rawTime}`); }
+                } else if (rawDate !== '-') { combinedEventTime = formatExcelDate(rawDate); }
 
-				const parsedDt = parseCustomDateToJS(combinedEventTime);
-				const rawHourStd = String(getRawValue(row, ['HOURBEFORESTD', 'HOURSBEFORESTD'])).trim();
+                const parsedDt = parseCustomDateToJS(combinedEventTime);
+                const rawHourStd = String(getRawValue(row, ['HOURBEFORESTD', 'HOURSBEFORESTD'])).trim();
 
-				// 1. Identify if the BAGTAGID is purely numeric
-				const isNumeric = /^\d+$/.test(bagTagId);
-				
-				// 2. Generate a highly unique Map key to prevent unintended overwrites
-				let uniqueMapKey;
-				
-				if (bagTagId.startsWith('UNKNOWN_')) {
-					uniqueMapKey = bagTagId;
-				} else if (!isNumeric && combinedEventTime !== '-') {
-					// Condition: Text-based BAGTAGID (texts not numbers) with an EVENTTIME is 1 unique incomplete bag
-					uniqueMapKey = `${bagTagId}_${index + 1}`;
-				} else {
-					// Condition: Same EVENTTIME but different BAGTAGID (or reused tags) are distinct bags
-					uniqueMapKey = `${bagTagId}_${combinedEventTime}_${index + 1}`;
-				}
+                const isNumeric = /^\d+$/.test(bagTagId);
+                let uniqueMapKey;
+                
+                if (bagTagId.startsWith('UNKNOWN_')) {
+                    uniqueMapKey = bagTagId;
+                } else if (!isNumeric && combinedEventTime !== '-') {
+                    uniqueMapKey = `${bagTagId}_${index + 1}`;
+                } else {
+                    uniqueMapKey = `${bagTagId}_${combinedEventTime}_${index + 1}`;
+                }
 
-				const bagEntity = {
-					bagTagId:      bagTagId, // Retain the original tag exclusively for table display
-					eventTime:     combinedEventTime,
-					timestamp:     parsedDt ? parsedDt.getTime() : 0, 
-					dateOnlyISO:   extractISODate(combinedEventTime), 
-					std:           formatExcelDate(rawStd),
-					flight:        String(getRawValue(row, ['FLIGHT', 'FLIGHTNO'])).trim(),
-					rummage:       String(getRawValue(row, ['RUMMAGE', 'RUMMAGESTATUS'])).trim(),
-					rummageArea:   String(getRawValue(row, ['RUMMAGEAREA', 'RECLAIMAREA', 'AREA'])).trim(),
-					reason:        String(getRawValue(row, ['REASON', 'RUMMAGEREASON'])).trim(),
-					chute:         String(getRawValue(row, ['CHUTE', 'CHUTEID', 'ASSIGNEDCHUTE'])).trim(),
-					groundHandler: String(getRawValue(row, ['GROUNDHANDLER', 'HANDLER'])).trim(),
-					hourBeforeStd: rawHourStd,
-					hourBeforeStdNum: parseHourString(rawHourStd) 
-				};
-				
-				// Store using the newly refined unique key instead of just bagTagId
-				bagDataset.set(uniqueMapKey, bagEntity);
-			});
-		}
+                const bagEntity = {
+                    bagTagId:      bagTagId, 
+                    eventTime:     combinedEventTime,
+                    timestamp:     parsedDt ? parsedDt.getTime() : 0, 
+                    dateOnlyISO:   extractISODate(combinedEventTime), 
+                    std:           formatExcelDate(rawStd),
+                    flight:        String(getRawValue(row, ['FLIGHT', 'FLIGHTNO'])).trim(),
+                    rummage:       String(getRawValue(row, ['RUMMAGE', 'RUMMAGESTATUS'])).trim(),
+                    rummageArea:   String(getRawValue(row, ['RUMMAGEAREA', 'RECLAIMAREA', 'AREA'])).trim(),
+                    reason:        String(getRawValue(row, ['REASON', 'RUMMAGEREASON'])).trim(),
+                    chute:         String(getRawValue(row, ['CHUTE', 'CHUTEID', 'ASSIGNEDCHUTE'])).trim(),
+                    groundHandler: String(getRawValue(row, ['GROUNDHANDLER', 'HANDLER'])).trim(),
+                    hourBeforeStd: rawHourStd,
+                    hourBeforeStdNum: parseHourString(rawHourStd) 
+                };
+                
+                bagDataset.set(uniqueMapKey, bagEntity);
+            });
+        }
 
         function setDefaultDateFilters() {
             let maxDate = '';
@@ -1824,6 +1826,10 @@
             let cIdx = 0;
             Array.from(reclaims).sort().forEach(area => {
                 if(!areaColorMap.has(area)) { areaColorMap.set(area, areaColorPalette[cIdx % areaColorPalette.length]); cIdx++; }
+            });
+            let rIdx = 0;
+            Array.from(reasons).sort().forEach(reason => {
+                if(!reasonColorMap.has(reason)) { reasonColorMap.set(reason, areaColorPalette[rIdx % areaColorPalette.length]); rIdx++; }
             });
 
             const flightOptionsList = $id('flight-options-list');
@@ -1888,30 +1894,45 @@
             renderRummageLoad(filteredBags);
             currentTableLimit = 500; 
             renderTable(filteredBags);
-            renderDurationHistogram(filteredBags);
+            renderReasonLoad(filteredBags);
             renderTimelineTable(filteredBags);
             triggerSimulation(); 
         }
 
-        function renderDurationHistogram(bags) {
+        function renderReasonLoad(bags) {
             const chartDiv = $id('chart-histogram');
             if (bags.length === 0) { try { Plotly.purge(chartDiv); } catch(e) {} return; }
 
-            const durations = bags.map(b => b.hourBeforeStdNum).filter(val => val !== null && !isNaN(val));
-            if (durations.length === 0) { try { Plotly.purge(chartDiv); } catch(e) {} return; }
+            const reasonCounts = new Map();
+            bags.forEach(bag => {
+                const reason = bag.reason && bag.reason !== '-' ? bag.reason : 'UNKNOWN';
+                reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
+            });
 
-            const trace = {
-                x: durations, type: 'histogram',
-                marker: { color: 'rgba(99, 102, 241, 0.7)', line: { color: 'rgba(79, 70, 229, 1)', width: 1.5 } },
-                hovertemplate: `<span style="color: #d1d5db;">Time Before STD:</span> <b style="color: #ffffff;">%{x} hrs</b><br><span style="color: #d1d5db;">Bags Processed:</span> <b style="color: #ffffff;">%{y}</b><extra></extra>`
-            };
+            let sortedReasons = Array.from(reasonCounts.keys());
+            const sortMethod = $id('reason-sort').value;
+
+            sortedReasons.sort((a, b) => {
+                if (sortMethod === 'bags-desc') return reasonCounts.get(b) - reasonCounts.get(a);
+                if (sortMethod === 'bags-asc') return reasonCounts.get(a) - reasonCounts.get(b);
+                if (sortMethod === 'alpha') return a.localeCompare(b);
+                return 0;
+            });
+
+            const xVals = sortedReasons, yVals = sortedReasons.map(r => reasonCounts.get(r));
+            const colors = sortedReasons.map(r => reasonColorMap.get(r) || 'rgba(99, 102, 241, 0.7)');
+
+            const plotlyData = [{
+                x: xVals, y: yVals, type: 'bar', marker: { color: colors, opacity: 0.5 },
+                text: yVals, textposition: 'outside', textfont: { color: '#4b5563', weight: 'bold' }, cliponaxis: false, hovertemplate: `<span style="color: #d1d5db;">%{x}</span>: <b style="color: #ffffff;">%{y}</b><extra></extra>`
+            }];
+
             const layout = {
                 margin: { t: 30, l: 60, r: 20, b: 40 }, paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
-                xaxis: { title: 'Hours Before STD', zeroline: false, tickfont: { color: '#4b5563' } },
-                yaxis: { title: { text: 'Number of Bags', standoff: 30 }, zeroline: false, tickfont: { color: '#4b5563' } },
+                xaxis: { title: '', tickangle: 0 }, yaxis: { title: { text: 'Total Bags', standoff: 30 } }, showlegend: false,
                 hoverlabel: { bgcolor: '#1f2937', bordercolor: '#374151', font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' } }
             };
-            Plotly.react(chartDiv, [trace], layout, PLOTLY_CONFIG);
+            Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
         }
 
         function renderKPIs(bags) {
@@ -2287,7 +2308,7 @@
                 const dd = String(d.getDate()).padStart(2, '0'), mmm = monthNames[d.getMonth()], yy = String(d.getFullYear()).slice(-2);
                 
                 let baseDateStr = (isEightDaysOrMore && interval !== 'daily') ? `${dd}-${mmm}` : `${dd} ${mmm} ${yy}`;
-                let finalDateStr = (isThirteenDaysOrMore && interval !== 'daily') ? baseDateStr : `<span style="font-weight: 900;"><b>${baseDateStr}</b></span>`;
+                let finalDateStr = baseDateStr; // Unbolded Date Output
 
                 if (tickStepMs >= 86400000) { ticktext.push(finalDateStr); } 
                 else { ticktext.push((hh === '00' && mm === '00') ? `00:00<br>${finalDateStr}` : `${hh}:${mm}`); }
@@ -2410,12 +2431,25 @@
                 });
             });
 
+            const dateShapes = [];
+            let startOfDay = new Date(minTime);
+            startOfDay.setHours(0,0,0,0);
+            let currentMid = startOfDay.getTime() + 86400000;
+            while (currentMid < maxTime) {
+                dateShapes.push({
+                    type: 'line', x0: currentMid, x1: currentMid, y0: 0, y1: 1, yref: 'paper',
+                    line: { color: 'rgba(0,0,0,0.2)', width: 1.5, dash: 'dash' }
+                });
+                currentMid += 86400000;
+            }
+
             const layout = {
                 margin: { t: 40, l: 60, r: 20, b: 40 }, paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
                 xaxis: { type: 'date', tickvals: customTicks.tickvals, ticktext: customTicks.ticktext, tickmode: 'array', range: [minTime, maxTime], hoverformat: '%d/%m/%y %H:%M' },
                 yaxis: { title: { text: 'Bags Count', standoff: 30 } }, showlegend: true, hovermode: 'x unified', 
                 hoverlabel: { bgcolor: '#1f2937', bordercolor: '#374151', namelength: -1, align: 'left', font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' } },
-                legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 }
+                legend: { orientation: 'h', yanchor: 'bottom', y: 1.05, xanchor: 'left', x: 0 },
+                shapes: dateShapes 
             };
             Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
         }
