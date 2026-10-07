@@ -1048,22 +1048,29 @@
                             tooltipHtmlArr.push(`<div class="bg-gray-700/50 border border-gray-600 rounded p-2 flex-1 min-w-[170px] max-w-[240px]">`);
                             
                             if (group.type === 'FLT') {
-                                // Extract and format STD along with Hours Before STD
                                 const stdSet = new Set();
+                                let sumHour = 0;
+                                let validHourCount = 0;
+
                                 fBags.forEach(b => {
                                     const s = stripSecondsFromDate(b.std);
-                                    const h = formatDecimalToHHmm(b.hourBeforeStdNum);
                                     if (s && s !== '-') {
-                                        stdSet.add(`${s} (${h})`);
+                                        stdSet.add(s);
+                                    }
+                                    if (b.hourBeforeStdNum !== null && !isNaN(b.hourBeforeStdNum)) {
+                                        sumHour += b.hourBeforeStdNum;
+                                        validHourCount++;
                                     }
                                 });
-                                const uniqueSTDs = Array.from(stdSet).join('<br>') || '-';
+
+                                const uniqueSTDs = Array.from(stdSet).join(', ') || '-';
+                                const avgHour = validHourCount > 0 ? formatDecimalToHHmm(sumHour / validHourCount) : '-';
+                                const displaySTD = uniqueSTDs !== '-' ? `${uniqueSTDs} (Avg: ${avgHour})` : '-';
                                 const uniqueReasons = Array.from(new Set(fBags.map(b => b.reason).filter(r => r && r !== '-'))).join(', ') || '-';
-                                
-                                // Color swapped for "Flight:" and text
+
                                 tooltipHtmlArr.push(`<div class="text-gray-300 font-bold mb-1 border-b border-gray-600 pb-1">Flight: <span class="text-blue-400">${group.flt}</span></div>`);
                                 tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Time:</span> <span class="text-gray-200 font-mono">${timeRange}</span></div>`);
-                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">STD:</span> <span class="text-gray-200">${uniqueSTDs}</span></div>`);
+                                tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">STD:</span> <span class="text-gray-200">${displaySTD}</span></div>`);
                                 tooltipHtmlArr.push(`<div class="text-[0.65rem] mb-0.5"><span class="text-gray-400">Reason:</span> <span class="text-gray-200">${uniqueReasons}</span></div>`);
                             } else {
                                 // Missing flight details logic replaced by Reason Focus
@@ -2036,18 +2043,27 @@
             if (bags.length === 0) { try { Plotly.purge(chartDiv); } catch(e) {} return; }
 
             const rawReasonCounts = new Map();
+            const uniqueDates = new Set();
+            
             bags.forEach(bag => {
                 const reason = bag.reason && bag.reason !== '-' ? bag.reason : 'UNKNOWN';
                 rawReasonCounts.set(reason, (rawReasonCounts.get(reason) || 0) + 1);
+                if (bag.dateOnlyISO) uniqueDates.add(bag.dateOnlyISO);
             });
 
-            // Isolate combinations for < 50 threshold 
+            // 4. Dynamic Threshold Logic based on selected unique dates
+            const uniqueDaysCount = uniqueDates.size || 1;
+            let threshold = 50;
+            if (uniqueDaysCount === 1) threshold = 200;
+            else if (uniqueDaysCount <= 3) threshold = 500;
+            else threshold = 1000;
+
             const finalReasonCounts = new Map();
             const othersDetails = [];
             let othersTotal = 0;
 
             rawReasonCounts.forEach((count, reason) => {
-                if (count < 50) {
+                if (count < threshold) {
                     othersTotal += count;
                     othersDetails.push({ reason, count });
                 } else {
@@ -2075,12 +2091,19 @@
             const yVals = sortedReasons.map(r => finalReasonCounts.get(r));
             const colors = sortedReasons.map(r => r === 'Others' ? '#94a3b8' : (reasonColorMap.get(r) || 'rgba(99, 102, 241, 0.7)'));
             
-            // Reconfigure internal Tooltip strings via Hovertext 
+            // 3. Hovertext generation with removed "Composition" and right/left alignment to colon
             const hoverTexts = sortedReasons.map(r => {
                 if (r === 'Others') {
                     othersDetails.sort((a, b) => b.count - a.count);
-                    const detailsStr = othersDetails.map(d => `${d.reason}: ${d.count}`).join('<br>');
-                    return `<span style="color: #d1d5db;">Others</span>: <b style="color: #ffffff;">${finalReasonCounts.get(r)}</b><br><br><span style="font-size:0.75rem;color:#9ca3af;border-bottom:1px solid #4b5563;display:block;margin-bottom:2px;">Composition:</span><span style="font-size:0.7rem;color:#9ca3af;">${detailsStr}</span>`;
+                    
+                    const maxReasonLen = othersDetails.length > 0 ? Math.max(...othersDetails.map(d => d.reason.length)) : 0;
+                    const detailsStr = othersDetails.map(d => {
+                        // Pad left spaces to align strings by the longest reason name
+                        const spaces = '&nbsp;'.repeat(Math.max(0, maxReasonLen - d.reason.length));
+                        return `<span style="font-family: monospace; font-size: 0.75rem; color: #9ca3af;">${spaces}${d.reason} : <b style="color: #ffffff;">${d.count}</b></span>`;
+                    }).join('<br>');
+                    
+                    return `<span style="color: #d1d5db;">Others</span>: <b style="color: #ffffff;">${finalReasonCounts.get(r)}</b><br><br>${detailsStr}`;
                 } else {
                     return `<span style="color: #d1d5db;">${r}</span>: <b style="color: #ffffff;">${finalReasonCounts.get(r)}</b>`;
                 }
@@ -2098,6 +2121,7 @@
                 xaxis: { title: '', tickangle: 0 }, yaxis: { title: { text: 'Total Bags', standoff: 30 } }, showlegend: false,
                 hoverlabel: { bgcolor: '#1f2937', bordercolor: '#374151', font: { color: '#d1d5db', size: 12, family: 'ui-sans-serif, system-ui, sans-serif' } }
             };
+            
             Plotly.react(chartDiv, plotlyData, layout, PLOTLY_CONFIG);
         }
 
@@ -2611,7 +2635,7 @@
                 bags.forEach(bag => {
                     if (!bag.timestamp) return;
                     const dt = new Date(bag.timestamp);
-                    const dateStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getFullYear()).slice(-2)}`;
+                    const dateStr = `${String(dt.getDate()).padStart(2, '0')}/${String(dt.getMonth() + 1).padStart(2, '0')}`;
                     
                     let h = dt.getHours(), m = dt.getMinutes();
                     if (interval === 'daily') {
