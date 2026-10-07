@@ -511,8 +511,8 @@
         </div>
     </div>
 
-    <!-- Custom Table Tooltip -->
-    <div id="table-custom-tooltip" class="fixed bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible transition-opacity duration-200 shadow-xl pointer-events-none z-[600] border border-gray-700 w-max px-4 py-2.5 transform -translate-x-1/2 -translate-y-full mt-[-15px]">
+    <!-- Custom Table Tooltip (ELEVATED Z-INDEX) -->
+    <div id="table-custom-tooltip" class="fixed bg-gray-800 text-white text-xs rounded-lg opacity-0 invisible transition-opacity duration-200 shadow-xl pointer-events-none z-[9999] border border-gray-700 w-max px-4 py-2.5 transform -translate-x-1/2 -translate-y-full mt-[-15px]">
         <div id="table-tooltip-content"></div>
         <div class="absolute top-full left-1/2 transform -translate-x-1/2 -mt-[1px] border-[6px] border-transparent border-t-gray-800"></div>
     </div>
@@ -989,12 +989,16 @@
                         let uniqueEventTimes = Array.from(new Set(cellBags.map(b => b.eventTime).filter(e => e && e !== '-'))).join(', ') || '-';
                         
                         const tooltipHtml = `
-                            <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-1.5 uppercase tracking-wide">Rummage Details: <span class="text-blue-400">${area}</span></div>
-                            <div class="mb-1"><span class="text-gray-400">Total Bags:</span> <span class="font-bold text-white ml-1">${count}</span></div>
-                            <div class="mb-1"><span class="text-gray-400">Flight(s):</span> <span class="font-bold text-white ml-1">${tr(uniqueFlights)}</span></div>
-                            <div class="mb-1"><span class="text-gray-400">Event Time:</span> <span class="font-bold text-white ml-1">${tr(uniqueEventTimes, 60)}</span></div>
-                            <div class="mb-1"><span class="text-gray-400">STD:</span> <span class="font-bold text-white ml-1">${tr(uniqueSTDs, 60)}</span></div>
-                            <div><span class="text-gray-400">Reason(s):</span> <span class="font-bold text-white ml-1">${tr(uniqueReasons)}</span></div>
+                            <div class="font-bold text-gray-300 border-b border-gray-600 pb-1.5 mb-2 uppercase tracking-wide">Rummage Details: <span class="text-blue-400">${area}</span></div>
+                            <table class="w-full text-left border-collapse">
+                                <tbody>
+                                    <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Flight(s)</td><td class="pb-1 font-bold text-white">${tr(uniqueFlights)}</td></tr>
+                                    <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Event Time</td><td class="pb-1 font-bold text-white">${tr(uniqueEventTimes, 60)}</td></tr>
+                                    <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">STD</td><td class="pb-1 font-bold text-white">${tr(uniqueSTDs, 60)}</td></tr>
+                                    <tr><td class="pr-3 pb-1 text-gray-400 whitespace-nowrap">Reason(s)</td><td class="pb-1 font-bold text-white">${tr(uniqueReasons)}</td></tr>
+                                    <tr><td class="pr-3 pt-1 border-t border-gray-600 text-gray-400 whitespace-nowrap">Total Bags</td><td class="pt-1 border-t border-gray-600 font-bold text-blue-400">${count}</td></tr>
+                                </tbody>
+                            </table>
                         `.replace(/"/g, '&quot;');
                         
                         tbodyHTML.push(`<td class="py-2 px-2 text-[0.7rem] font-bold text-blue-600 hover:text-blue-800 text-center border-b border-gray-100 min-w-[60px] w-[60px] cursor-help timeline-cell-hover bg-blue-50/20" data-tooltip-html="${tooltipHtml}">${count}</td>`);
@@ -2374,14 +2378,15 @@
                     
                     annotations.push({
                         x: midOfDay,
-                        y: -0.16, 
+                        y: 0, 
                         xref: 'x',
                         yref: 'paper',
-                        text: baseDateStr,
+                        yshift: -28, 
+                        text: `<b>${baseDateStr}</b>`, 
                         showarrow: false,
                         xanchor: 'center',
                         yanchor: 'top',
-                        font: { size: 12, color: '#6b7280', family: 'monospace' }
+                        font: { size: 12, color: '#4b5563', family: 'ui-sans-serif, system-ui, sans-serif' } 
                     });
                     
                     currentDayStart.setDate(currentDayStart.getDate() + 1);
@@ -2518,7 +2523,7 @@
             }
 
             const layout = {
-                margin: { t: 40, l: 60, r: 20, b: 60 },
+                margin: { t: 40, l: 60, r: 20, b: 50 }, 
                 paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff',
                 xaxis: { type: 'date', tickvals: customTicks.tickvals, ticktext: customTicks.ticktext, tickmode: 'array', range: [minTime, maxTime], hoverformat: '%d/%m/%y %H:%M' },
                 yaxis: { title: { text: 'Bags Count', standoff: 30 } }, showlegend: true, hovermode: 'x unified', 
